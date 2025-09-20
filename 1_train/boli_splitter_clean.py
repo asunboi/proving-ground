@@ -209,11 +209,61 @@ def create_dataset_variants(adata, balanced_transfer_splitter, base_fractions=[1
     
     return datasets
 
-def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/"):
+def generate_yaml_config(dataset_name, h5ad_path, csv_path):
     """
-    Saves all datasets as CSV files and H5AD files
+    Generate YAML configuration content for a dataset
+    
+    Parameters:
+    - dataset_name: Name of the dataset (e.g., "100_8")
+    - h5ad_path: Full path to the H5AD file
+    - csv_path: Full path to the CSV split file
+    
+    Returns:
+    - yaml_content: String containing the YAML configuration
+    """
+    
+    yaml_template = f"""# @package _global_
+
+    defaults:
+    - override /model: latent_additive
+    - override /callbacks: default
+    - override /data: boli_ctx
+    #- override /hydra: default
+
+    #ckpt_path: /gpfs/group/jin/asun/perturbench/src/perturbench/src/perturbench/configs/data/splitter/logs/train/runs/2025-09-11_15-45-42/checkpoints/epoch=4-step=535.ckpt
+
+    data:
+    datapath: {h5ad_path}
+    evaluation:
+        split_value_to_evaluate: val
+    splitter: 
+        split_path: {csv_path}
+
+    # output directory, generated dynamically on each run
+    hydra:
+    run:
+        dir: ${{paths.log_dir}}/${{task_name}}/runs/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}_boli_{dataset_name}
+    """
+    
+    return yaml_template
+
+
+def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/", 
+                 csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", yaml_dir=None):
+    """
+    Saves all datasets as CSV files and H5AD files, and generates corresponding YAML config files
+    
+    Parameters:
+    - datasets: Dictionary of dataset name to dataframe
+    - adata: The original AnnData object 
+    - output_dir: Directory to save H5AD files
+    - csv_dir: Directory to save CSV files
+    - yaml_dir: Directory to save YAML files (defaults to csv_dir if None)
     """
     import os
+    
+    if yaml_dir is None:
+        yaml_dir = csv_dir
     
     for dataset_name, df in datasets.items():
         print(f"Saving {dataset_name}...")
@@ -221,19 +271,27 @@ def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturben
         # Save CSV with transfer split information
         out = df[["transfer_split_seed1"]].copy()
         csv_filename = f"boli_df_{dataset_name}_train_downsample_only_split.csv"
-        out.to_csv(
-            os.path.join(output_dir, csv_filename), 
-            index=True, 
-            index_label="cell_barcode", 
-            header=False
-        )
+        csv_path = os.path.join(csv_dir, csv_filename)
+        out.to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
         
         # Save H5AD file
         adata_subset = adata[df.index].copy()
         h5ad_filename = f"boli_subset_seed2_train_downsample_only_{dataset_name}.h5ad"
-        adata_subset.write_h5ad(os.path.join(output_dir, h5ad_filename))
+        h5ad_path = os.path.join(output_dir, h5ad_filename)
+        adata_subset.write_h5ad(h5ad_path)
         
-        print(f"  Saved {csv_filename} and {h5ad_filename}")
+        # Generate and save YAML config file
+        yaml_content = generate_yaml_config(dataset_name, h5ad_path, csv_path)
+        yaml_filename = f"boli_{dataset_name}_experiment.yaml"
+        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        
+        # Ensure yaml directory exists
+        os.makedirs(yaml_dir, exist_ok=True)
+        
+        with open(yaml_path, 'w') as f:
+            f.write(yaml_content)
+        
+        print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
 # Main execution
 if __name__ == "__main__":
@@ -263,7 +321,13 @@ if __name__ == "__main__":
     # Create all dataset variants
     datasets = create_dataset_variants(adata, balanced_transfer_splitter)
     
-    # Save all datasets
-    save_datasets(datasets, adata)
+    # Save all datasets with YAML configs
+    save_datasets(
+        datasets, 
+        adata, 
+        output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/",
+        csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/",
+        yaml_dir="/gpfs/home/asun/jin_lab/perturbench/configs/experiment/"
+    )
     
     print("All datasets created and saved successfully!")
