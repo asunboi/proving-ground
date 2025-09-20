@@ -5,6 +5,7 @@ import numpy as np
 import yaml
 from omegaconf import OmegaConf
 import pandas as pd
+import os
 
 def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_seed1", train_label="train", random_state=42):
     """
@@ -203,7 +204,7 @@ def create_dataset_variants(adata, balanced_transfer_splitter, base_fractions=[1
                 )
             
             qual_name = "high" if frac_name == "100" else "medium" if frac_name == "60" else "low"
-            amt_name = "high" if config_name == "11" else "medium" if frac_name == "8" else "low"
+            amt_name = "high" if config_name == "11" else "medium" if config_name == "8" else "low"
 
             dataset_key = f"qual_{qual_name}_amt_{amt_name}"
 
@@ -264,10 +265,14 @@ def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturben
     - csv_dir: Directory to save CSV files
     - yaml_dir: Directory to save YAML files (defaults to csv_dir if None)
     """
-    import os
-    
+
     if yaml_dir is None:
         yaml_dir = csv_dir
+    
+    # Create directories if they don't exist
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(yaml_dir, exist_ok=True)
     
     for dataset_name, df in datasets.items():
         print(f"Saving {dataset_name}...")
@@ -288,9 +293,6 @@ def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturben
         yaml_content = generate_yaml_config(dataset_name, h5ad_path, csv_path)
         yaml_filename = f"boli_{dataset_name}_experiment.yaml"
         yaml_path = os.path.join(yaml_dir, yaml_filename)
-        
-        # Ensure yaml directory exists
-        os.makedirs(yaml_dir, exist_ok=True)
         
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
@@ -329,9 +331,9 @@ if __name__ == "__main__":
     save_datasets(
         datasets, 
         adata, 
-        output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/",
-        csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/",
-        yaml_dir="/gpfs/home/asun/jin_lab/perturbench/configs/experiment/"
+        output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/data/",
+        csv_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/splits/",
+        yaml_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/cfg/"
     )
     
     print("All datasets created and saved successfully!")
