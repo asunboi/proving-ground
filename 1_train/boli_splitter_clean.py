@@ -133,13 +133,14 @@ def plot_counts(df, cell_line_col="cell_line", gene_col="gene", seed_col="transf
     plt.show()
     return fig, axes
 
-def create_dataset_variants(boli, balanced_transfer_splitter, base_fractions=[1.0, 0.6, 0.2]):
+
+def create_dataset_variants(adata, balanced_transfer_splitter, base_fractions=[1.0, 0.6, 0.2]):
     """
     Automates the creation of dataset variants with different perturbation exclusions/inclusions
     and different sampling fractions.
     
     Parameters:
-    - boli: The original AnnData object
+    - adata: The original AnnData object
     - balanced_transfer_splitter: The splitter object with obs_dataframe
     - base_fractions: List of fractions to subsample (1.0 means full dataset)
     """
@@ -164,9 +165,6 @@ def create_dataset_variants(boli, balanced_transfer_splitter, base_fractions=[1.
         }
     }
     
-    # Get base dataframe from splitter
-    df_base = balanced_transfer_splitter.obs_dataframe
-    
     # Store all created datasets
     datasets = {}
     
@@ -177,12 +175,12 @@ def create_dataset_variants(boli, balanced_transfer_splitter, base_fractions=[1.
     for config_name, config in dataset_configs.items():
         print(f"Creating dataset configuration {config_name}...")
         
-        df_config = df_base.copy()
-        
+        df_config = balanced_transfer_splitter.obs_dataframe
+
         # Add back perturbations as training data
         if config['add_back_as_train']:
             # Get rows to add back
-            rows_to_add = boli.obs[boli.obs["condition"].isin(config['add_back_as_train'])].copy()
+            rows_to_add = adata.obs[adata.obs["condition"].isin(config['add_back_as_train'])].copy()
             # Set them as training data
             rows_to_add["transfer_split_seed1"] = "train"
             # Combine with existing data
@@ -211,7 +209,7 @@ def create_dataset_variants(boli, balanced_transfer_splitter, base_fractions=[1.
     
     return datasets
 
-def save_datasets(datasets, boli, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/"):
+def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/"):
     """
     Saves all datasets as CSV files and H5AD files
     """
@@ -231,7 +229,7 @@ def save_datasets(datasets, boli, output_dir="/gpfs/home/asun/jin_lab/perturbenc
         )
         
         # Save H5AD file
-        adata_subset = boli[df.index].copy()
+        adata_subset = adata[df.index].copy()
         h5ad_filename = f"boli_subset_seed2_train_downsample_only_{dataset_name}.h5ad"
         adata_subset.write_h5ad(os.path.join(output_dir, h5ad_filename))
         
@@ -239,12 +237,12 @@ def save_datasets(datasets, boli, output_dir="/gpfs/home/asun/jin_lab/perturbenc
 
 # Main execution
 if __name__ == "__main__":
-    # Load data and create splitter (assuming these are already done)
-    boli = sc.read_h5ad('/gpfs/home/asun/jin_lab/perturbench/0_datasets/boli_ctx_scprocess_no+ctrl.h5ad')
+    # Load data and create splitter
+    adata = sc.read_h5ad('/gpfs/home/asun/jin_lab/perturbench/0_datasets/boli_ctx_scprocess_no+ctrl.h5ad')
     
     # Create initial filtered dataset for splitter
     perturbations_to_remove = ["XPO7", "RB1CC1", "SATB2", "CX3CL1", "CUL1", "TBR1"]
-    df_100_5_initial = boli.obs[~boli.obs["condition"].isin(perturbations_to_remove)]
+    df_100_5_initial = adata.obs[~adata.obs["condition"].isin(perturbations_to_remove)]
     
     # Create and run splitter
     balanced_transfer_splitter = PerturbationDataSplitter(
@@ -263,9 +261,9 @@ if __name__ == "__main__":
     )
     
     # Create all dataset variants
-    datasets = create_dataset_variants(boli, balanced_transfer_splitter)
+    datasets = create_dataset_variants(adata, balanced_transfer_splitter)
     
     # Save all datasets
-    save_datasets(datasets, boli)
+    save_datasets(datasets, adata)
     
     print("All datasets created and saved successfully!")
