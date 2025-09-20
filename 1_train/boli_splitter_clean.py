@@ -202,7 +202,11 @@ def create_dataset_variants(adata, balanced_transfer_splitter, base_fractions=[1
                     random_state=random_seed
                 )
             
-            dataset_key = f"{frac_name}_{config_name}"
+            qual_name = "high" if frac_name == "100" else "medium" if frac_name == "60" else "low"
+            amt_name = "high" if config_name == "11" else "medium" if frac_name == "8" else "low"
+
+            dataset_key = f"qual_{qual_name}_amt_{amt_name}"
+
             datasets[dataset_key] = df_sampled
             
             print(f"  Created {dataset_key} with {len(df_sampled)} cells")
