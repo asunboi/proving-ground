@@ -46,7 +46,7 @@ def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_s
     return pd.concat([train_down, others_df]).sort_index()
 
 
-def plot_counts(df, cell_line_col="cell_line", gene_col="gene", seed_col="transfer_split_seed1"):
+def plot_counts(df, outfile, cell_line_col="cell_class", gene_col="condition", seed_col="transfer_split_seed1"):
     """
     Make heatmaps of counts per (cell_line, gene) × seed from a DataFrame.
 
@@ -131,7 +131,8 @@ def plot_counts(df, cell_line_col="cell_line", gene_col="gene", seed_col="transf
         fig.delaxes(axes[j])
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig(outfile, dpi=300)
+
     return fig, axes
 
 
@@ -229,32 +230,36 @@ def generate_yaml_config(dataset_name, h5ad_path, csv_path):
     
     yaml_template = f"""# @package _global_
 
-    defaults:
-    - override /model: latent_additive
-    - override /callbacks: default
-    - override /data: boli_ctx
-    #- override /hydra: default
+defaults:
+- override /model: latent_additive
+- override /callbacks: default
+- override /data: boli_ctx
+#- override /hydra: default
 
-    #ckpt_path: /gpfs/group/jin/asun/perturbench/src/perturbench/src/perturbench/configs/data/splitter/logs/train/runs/2025-09-11_15-45-42/checkpoints/epoch=4-step=535.ckpt
+#ckpt_path: /gpfs/group/jin/asun/perturbench/src/perturbench/src/perturbench/configs/data/splitter/logs/train/runs/2025-09-11_15-45-42/checkpoints/epoch=4-step=535.ckpt
 
-    data:
+data:
     datapath: {h5ad_path}
     evaluation:
         split_value_to_evaluate: val
     splitter: 
         split_path: {csv_path}
 
-    # output directory, generated dynamically on each run
-    hydra:
+# output directory, generated dynamically on each run
+hydra:
     run:
         dir: ${{paths.log_dir}}/${{task_name}}/runs/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}_boli_{dataset_name}
+    sweep:
+            dir: ${{paths.log_dir}}/${{task_name}}/multiruns/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}
+            subdir: ${{hydra.job.num}}_boli_{dataset_name}
+
     """
     
     return yaml_template
 
 
 def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/", 
-                 csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", yaml_dir=None):
+                 csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", fig_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", yaml_dir=None):
     """
     Saves all datasets as CSV files and H5AD files, and generates corresponding YAML config files
     
@@ -272,32 +277,38 @@ def save_datasets(datasets, adata, output_dir="/gpfs/home/asun/jin_lab/perturben
     # Create directories if they don't exist
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(fig_dir, exist_ok=True)
     os.makedirs(yaml_dir, exist_ok=True)
     
     for dataset_name, df in datasets.items():
         print(f"Saving {dataset_name}...")
         
-        # Save CSV with transfer split information
-        out = df[["transfer_split_seed1"]].copy()
-        csv_filename = f"boli_df_{dataset_name}_train_downsample_only_split.csv"
-        csv_path = os.path.join(csv_dir, csv_filename)
-        out.to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
+        # # Save CSV with transfer split information
+        # out = df[["transfer_split_seed1"]].copy()
+        # csv_filename = f"replogle_df_{dataset_name}_train_downsample_only_split.csv"
+        # csv_path = os.path.join(csv_dir, csv_filename)
+        # out.to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
         
-        # Save H5AD file
-        adata_subset = adata[df.index].copy()
-        h5ad_filename = f"boli_subset_seed2_train_downsample_only_{dataset_name}.h5ad"
-        h5ad_path = os.path.join(output_dir, h5ad_filename)
-        adata_subset.write_h5ad(h5ad_path)
+        # Plot split
+        fig_filename = f"boli_df_{dataset_name}_train_downsample_only_split.png"
+        fig_path = os.path.join(fig_dir, fig_filename)
+        plot_counts(df, fig_path)
+
+        # # Save H5AD file
+        # adata_subset = adata[df.index].copy()
+        # h5ad_filename = f"replogle_subset_seed2_train_downsample_only_{dataset_name}.h5ad"
+        # h5ad_path = os.path.join(output_dir, h5ad_filename)
+        # adata_subset.write_h5ad(h5ad_path)
         
-        # Generate and save YAML config file
-        yaml_content = generate_yaml_config(dataset_name, h5ad_path, csv_path)
-        yaml_filename = f"boli_{dataset_name}_experiment.yaml"
-        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        # # Generate and save YAML config file
+        # yaml_content = generate_yaml_config(dataset_name, h5ad_path, csv_path)
+        # yaml_filename = f"replogle_{dataset_name}_experiment.yaml"
+        # yaml_path = os.path.join(yaml_dir, yaml_filename)
         
-        with open(yaml_path, 'w') as f:
-            f.write(yaml_content)
+        # with open(yaml_path, 'w') as f:
+        #     f.write(yaml_content)
         
-        print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
+        # print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
 # Main execution
 if __name__ == "__main__":
@@ -331,9 +342,10 @@ if __name__ == "__main__":
     save_datasets(
         datasets, 
         adata, 
-        output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/data/",
-        csv_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/splits/",
-        yaml_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/test/cfg/"
+        output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/data/",
+        csv_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/splits/",
+        fig_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/figures/",
+        yaml_dir="/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/boli/"
     )
     
     print("All datasets created and saved successfully!")
