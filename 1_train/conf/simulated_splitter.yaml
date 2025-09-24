@@ -1,0 +1,23 @@
+# conf/config.yaml
+
+adata:
+  input_path: /gpfs/home/asun/jin_lab/perturbench/0_simulate/simulated_data.h5ad
+
+perturbations:
+  remove: ["p0", "p1", "p2", "p3", "p4", "p5"]
+  key: perturbation
+  control_value: NTC
+
+covariates:
+  names: ["cell_type"]
+
+splitter:
+  seed: 1
+  max_heldout_fraction_per_covariate: 0.6
+  max_heldout_covariates: 3
+
+output:
+  data_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/simulated/data/
+  csv_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/simulated/splits/
+  fig_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/simulated/figures/
+  yaml_dir: /gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/simulated/
