@@ -216,12 +216,12 @@ def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, pe
     
     return datasets
 
-def generate_yaml_config(dataset_name, h5ad_path, csv_path):
+def generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path):
     """
     Generate YAML configuration content for a dataset
     
     Parameters:
-    - dataset_name: Name of the dataset (e.g., "100_8")
+    - split_name: Name of the dataset (e.g., "100_8")
     - h5ad_path: Full path to the H5AD file
     - csv_path: Full path to the CSV split file
     
@@ -235,12 +235,13 @@ defaults:
 - override /model: latent_additive
 - override /callbacks: default
 - override /data: boli_ctx
-#- override /hydra: default
-
-#ckpt_path: /gpfs/group/jin/asun/perturbench/src/perturbench/src/perturbench/configs/data/splitter/logs/train/runs/2025-09-11_15-45-42/checkpoints/epoch=4-step=535.ckpt
 
 data:
     datapath: {h5ad_path}
+    covariate_keys: ["{covariate_key}"]
+    perturbation_key: {perturbation_key}
+    perturbation_combination_delimiter: +
+    perturbation_control_value: {control_value}
     evaluation:
         split_value_to_evaluate: val
     splitter: 
@@ -249,17 +250,17 @@ data:
 # output directory, generated dynamically on each run
 hydra:
     run:
-        dir: ${{paths.log_dir}}/${{task_name}}/runs/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}_boli_{dataset_name}
+        dir: ${{paths.log_dir}}/${{task_name}}/runs/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}_{dataset_name}_{split_name}
     sweep:
             dir: ${{paths.log_dir}}/${{task_name}}/multiruns/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}
-            subdir: ${{hydra.job.num}}_boli_{dataset_name}
+            subdir: ${{hydra.job.num}}_{dataset_name}_{split_name}
 
     """
     
     return yaml_template
 
 
-def save_datasets(datasets, adata, perturbation_key, covariate_key, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/", 
+def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key, control_value, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/", 
                  csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", fig_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", yaml_dir=None):
     """
     Saves all datasets as CSV files and H5AD files, and generates corresponding YAML config files
@@ -281,29 +282,29 @@ def save_datasets(datasets, adata, perturbation_key, covariate_key, output_dir="
     os.makedirs(fig_dir, exist_ok=True)
     os.makedirs(yaml_dir, exist_ok=True)
     
-    for dataset_name, df in datasets.items():
-        print(f"Saving {dataset_name}...")
+    for split_name, df in datasets.items():
+        print(f"Saving {split_name}...")
         
         # Save CSV with transfer split information
         out = df[["transfer_split_seed1"]].copy()
-        csv_filename = f"replogle_df_{dataset_name}_train_downsample_only_split.csv"
+        csv_filename = f"{dataset_name}_{split_name}_split.csv"
         csv_path = os.path.join(csv_dir, csv_filename)
         out.to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
         
         # Plot split
-        fig_filename = f"boli_df_{dataset_name}_train_downsample_only_split.png"
+        fig_filename = f"{dataset_name}_{split_name}_split.png"
         fig_path = os.path.join(fig_dir, fig_filename)
         plot_counts(df, fig_path, perturbation_key, covariate_key)
 
         # Save H5AD file
         adata_subset = adata[df.index].copy()
-        h5ad_filename = f"replogle_subset_seed2_train_downsample_only_{dataset_name}.h5ad"
+        h5ad_filename = f"{dataset_name}_{split_name}.h5ad"
         h5ad_path = os.path.join(output_dir, h5ad_filename)
         adata_subset.write_h5ad(h5ad_path)
         
         # Generate and save YAML config file
-        yaml_content = generate_yaml_config(dataset_name, h5ad_path, csv_path)
-        yaml_filename = f"replogle_{dataset_name}_experiment.yaml"
+        yaml_content = generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
+        yaml_filename = f"{dataset_name}_{split_name}.yaml"
         yaml_path = os.path.join(yaml_dir, yaml_filename)
         
         with open(yaml_path, 'w') as f:
@@ -346,8 +347,10 @@ def main(cfg: DictConfig):
     save_datasets(
         datasets,
         adata,
+        cfg.dataset.name,
         cfg.perturbations.key,
         covariate_keys[0],
+        cfg.perturbations.control_value,
         output_dir=cfg.output.data_dir,
         csv_dir=cfg.output.csv_dir,
         fig_dir=cfg.output.fig_dir,

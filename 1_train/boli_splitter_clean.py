@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 import pandas as pd
 import os
 
+
 def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_seed1", train_label="train", random_state=42):
     """
     Subsample only the training set rows, stratified by group_keys.
