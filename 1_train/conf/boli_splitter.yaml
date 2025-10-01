@@ -1,5 +1,8 @@
 # conf/config.yaml
 
+dataset:
+  name: boli
+
 adata:
   input_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/boli_ctx_scprocess_no+ctrl.h5ad
 

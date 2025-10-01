@@ -1,5 +1,8 @@
 # conf/config.yaml
 
+dataset:
+  name: simulated
+
 adata:
   input_path: /gpfs/home/asun/jin_lab/perturbench/0_simulate/simulated_data.h5ad
 
