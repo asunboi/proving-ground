@@ -46,6 +46,41 @@ def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_s
     # Combine train + others
     return pd.concat([train_down, others_df]).sort_index()
 
+def manual_controls(df, condition_col='condition', control_value='ctrl'):
+    """
+    Manually assign train/val/test splits based on BioSamp values for control cells only.
+    
+    Parameters:
+    - df: DataFrame with columns 'BioSamp', 'condition', and 'transfer_split_seed1'
+    - condition_col: Name of the condition column (default: 'condition')
+    - control_value: Value indicating control cells (default: 'ctrl')
+    
+    Returns:
+    - df: DataFrame with updated 'transfer_split_seed1' column
+    
+    Split logic (applied only to control cells):
+    - Batch 1 Sample 1 and 2 -> train
+    - Batch 2 mouse 1 and 2 -> val
+    - Batch 2 mouse 3 -> test
+    """
+    df = df.copy()
+    
+    # Create mask for control cells only
+    control_mask = df[condition_col] == control_value
+    
+    # Train: Batch 1 Sample 1 and 2 (controls only)
+    train_mask = control_mask & df['BioSamp'].str.contains('batch1_samp[12]', case=False, regex=True, na=False)
+    df.loc[train_mask, 'transfer_split_seed1'] = 'train'
+    
+    # Val: Batch 2 mouse 1 and 2 (controls only)
+    val_mask = control_mask & df['BioSamp'].str.contains('batch2_mouse[12]', case=False, regex=True, na=False)
+    df.loc[val_mask, 'transfer_split_seed1'] = 'val'
+    
+    # Test: Batch 2 mouse 3 (controls only)
+    test_mask = control_mask & df['BioSamp'].str.contains('batch2_mouse3', case=False, regex=True, na=False)
+    df.loc[test_mask, 'transfer_split_seed1'] = 'test'
+    
+    return df
 
 def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer_split_seed1"):
     """
@@ -179,10 +214,11 @@ def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, pe
         print(f"Creating dataset configuration {config_name}...")
         
         df_config = balanced_transfer_splitter.obs_dataframe
+        df_config = manual_controls(df_config)
 
         # Add back perturbations as training data
         if config['add_back_as_train']:
-            # Get rows to add back
+            # Get rows to add back 
             rows_to_add = adata.obs[adata.obs[perturbation_key].isin(config['add_back_as_train'])].copy()
             # Set them as training data
             rows_to_add["transfer_split_seed1"] = "train"
