@@ -7,6 +7,8 @@ import pandas as pd
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
+import random
+
 
 def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_seed1", train_label="train", random_state=42):
     """
@@ -279,7 +281,7 @@ data:
     perturbation_combination_delimiter: +
     perturbation_control_value: {control_value}
     evaluation:
-        split_value_to_evaluate: val
+        split_value_to_evaluate: test
     splitter: 
         split_path: {csv_path}
 
@@ -346,6 +348,11 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
         
+        # Create symlink in another directory
+        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/"
+        link_path = os.path.join(link_dir, dataset_name)
+        os.symlink(yaml_path, link_path)
+
         print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
 @hydra.main(config_path="conf", config_name="config", version_base="1.3")
@@ -357,8 +364,32 @@ def main(cfg: DictConfig):
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)
 
-    # Create initial filtered dataset
-    perturbations_to_remove = OmegaConf.to_container(cfg.perturbations.remove, resolve=True)
+    # Determine perturbations to remove
+    if cfg.perturbations.get('randomize', False):
+        # Get all unique perturbations
+        all_perturbations = adata.obs[cfg.perturbations.key].unique().tolist()
+        
+        # Remove control from the list if it exists
+        control_value = cfg.perturbations.get('control_value', 'ctrl')
+        if control_value in all_perturbations:
+            all_perturbations.remove(control_value)
+        
+        # Shuffle with seed
+        seed = cfg.perturbations.get('random_seed', 42)
+        random.seed(seed)
+        np.random.seed(seed)
+        random.shuffle(all_perturbations)
+        
+        # Take top N perturbations to remove
+        n_remove = cfg.perturbations.get('n_remove', 6)
+        perturbations_to_remove = all_perturbations[:n_remove]
+        
+        print(f"Randomly selected perturbations to remove (seed={seed}): {perturbations_to_remove}")
+    else:
+        # Use manually specified list
+        perturbations_to_remove = OmegaConf.to_container(cfg.perturbations.remove, resolve=True)
+        print(f"Using specified perturbations to remove: {perturbations_to_remove}")
+
     df_initial = adata.obs[~adata.obs[cfg.perturbations.key].isin(perturbations_to_remove)]
 
     # Create and run splitter
