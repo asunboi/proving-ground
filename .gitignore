@@ -8,3 +8,7 @@
 0_datasets/simulated/
 0_datasets/simulated_2/
 0_datasets/test/
+
+1_train/initial_splits/
+1_train/logs/
+1_train/outputs/
