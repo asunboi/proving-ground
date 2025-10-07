@@ -297,9 +297,46 @@ hydra:
     
     return yaml_template
 
+def generate_prediction_dataframe(df, split_col='transfer_split_seed1', 
+                              condition_col='condition', 
+                              cell_type_col='cell_class',
+                              output_csv='test_combinations.csv'):
+    """
+    Extract unique condition and cell_type combinations from test split.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Input dataframe with split assignments
+    split_col : str
+        Column name for train/val/test split (default: 'transfer_split_seed1')
+    condition_col : str
+        Column name for perturbation condition (default: 'condition')
+    cell_type_col : str
+        Column name for cell type (default: 'cell_class')
+    output_csv : str
+        Output CSV filename (default: 'test_combinations.csv')
+    
+    Returns:
+    --------
+    test_combos : pd.DataFrame
+        DataFrame with unique condition-cell_type combinations from test set
+    """
+    # Filter to test set only
+    test_df = df[df[split_col] == 'test']
+    
+    # Get unique combinations of condition and cell_type
+    test_combos = test_df[[condition_col, cell_type_col]].drop_duplicates()
+    
+    # Save to CSV
+    test_combos.to_csv(output_csv, index=False)
+    
+    print(f"Extracted {len(test_combos)} unique test combinations")
+    print(f"Saved to: {output_csv}")
+    
+    return test_combos
 
-def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key, control_value, output_dir="/gpfs/home/asun/jin_lab/perturbench/0_datasets/clean/", 
-                 csv_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", fig_dir="/gpfs/home/asun/jin_lab/perturbench/1_train/", yaml_dir=None):
+def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key, control_value, main_dir):
     """
     Saves all datasets as CSV files and H5AD files, and generates corresponding YAML config files
     
@@ -310,9 +347,11 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
     - csv_dir: Directory to save CSV files
     - yaml_dir: Directory to save YAML files (defaults to csv_dir if None)
     """
-
-    if yaml_dir is None:
-        yaml_dir = csv_dir
+    
+    output_dir = main_dir + "data/"
+    csv_dir = main_dir + "splits/"
+    fig_dir = main_dir + "figures/"
+    yaml_dir = main_dir + "cfg/"
     
     # Create directories if they don't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -328,6 +367,11 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         csv_filename = f"{dataset_name}_{split_name}_split.csv"
         csv_path = os.path.join(csv_dir, csv_filename)
         out.to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
+
+        # Generate the prediction dataframe for testing set
+        prediction_filename = "prediction_dataframe.csv"
+        prediction_path = os.path.join(main_dir, prediction_filename)
+        generate_prediction_dataframe(df, condition_col=perturbation_key, cell_type_col=covariate_key, output_csv=prediction_path)
         
         # Plot split
         fig_filename = f"{dataset_name}_{split_name}_split.png"
@@ -349,8 +393,14 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
             f.write(yaml_content)
         
         # Create symlink in another directory
-        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/"
-        link_path = os.path.join(link_dir, dataset_name)
+        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/" + dataset_name + "/"
+        os.makedirs(link_dir, exist_ok=True)
+        link_path = os.path.join(link_dir, yaml_filename)
+
+        # Remove existing symlink if it already exists
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+
         os.symlink(yaml_path, link_path)
 
         print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
@@ -418,13 +468,17 @@ def main(cfg: DictConfig):
         cfg.perturbations.key,
         covariate_keys[0],
         cfg.perturbations.control_value,
-        output_dir=cfg.output.data_dir,
-        csv_dir=cfg.output.csv_dir,
-        fig_dir=cfg.output.fig_dir,
-        yaml_dir=cfg.output.yaml_dir,
+        cfg.output.main_dir
     )
 
     print("All datasets created and saved successfully!")
+
+    # Save note as README.md
+    if "note" in cfg and cfg.note:
+        readme_path = os.path.join(cfg.output.main_dir, "README.md")
+        with open(readme_path, "w") as f:
+            f.write(cfg.note.strip() + "\n")
+        print(f"Note saved to {readme_path}")
 
 # Main execution
 if __name__ == "__main__":
