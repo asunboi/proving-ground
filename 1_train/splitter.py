@@ -174,7 +174,7 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer
     return fig, axes
 
 
-def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, perturbation_key, covariate_key, base_fractions=[1.0, 0.6, 0.2]):
+def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, perturbation_key, covariate_key, base_fractions=[1.0, 0.6, 0.2], manual_control):
     """
     Automates the creation of dataset variants with different perturbation exclusions/inclusions
     and different sampling fractions.
@@ -216,7 +216,9 @@ def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, pe
         print(f"Creating dataset configuration {config_name}...")
         
         df_config = balanced_transfer_splitter.obs_dataframe
-        df_config = manual_controls(df_config)
+
+        if manual_control:
+            df_config = manual_controls(df_config)
 
         # Add back perturbations as training data
         if config['add_back_as_train']:
@@ -458,7 +460,7 @@ def main(cfg: DictConfig):
     )
 
     # Create dataset variants
-    datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0])
+    datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0], cfg.manual_control)
 
     # Save all datasets
     save_datasets(
