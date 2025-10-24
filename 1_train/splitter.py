@@ -174,7 +174,7 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer
     return fig, axes
 
 
-def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, perturbation_key, covariate_key, base_fractions=[1.0, 0.6, 0.2], manual_control):
+def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, perturbation_key, covariate_key, manual_control, base_fractions=[1.0, 0.6, 0.2]):
     """
     Automates the creation of dataset variants with different perturbation exclusions/inclusions
     and different sampling fractions.
@@ -413,6 +413,8 @@ def main(cfg: DictConfig):
     
     covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
 
+    main_dir = cfg.output.main_dir + cfg.dataset.name + '/'
+
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)
 
@@ -470,14 +472,14 @@ def main(cfg: DictConfig):
         cfg.perturbations.key,
         covariate_keys[0],
         cfg.perturbations.control_value,
-        cfg.output.main_dir
+        main_dir
     )
 
     print("All datasets created and saved successfully!")
 
     # Save note as README.md
     if "note" in cfg and cfg.note:
-        readme_path = os.path.join(cfg.output.main_dir, "README.md")
+        readme_path = os.path.join(main_dir, "README.md")
         with open(readme_path, "w") as f:
             f.write(cfg.note.strip() + "\n")
         print(f"Note saved to {readme_path}")
