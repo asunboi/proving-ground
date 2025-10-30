@@ -3,7 +3,6 @@
 # dataset specific ignores
 0_datasets/boli/
 0_datasets/clean/
-0_datasets/linear/
 0_datasets/replogle/
 0_datasets/simulated/
 0_datasets/simulated_2/

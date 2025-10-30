@@ -63,3 +63,7 @@ print(f"Filtered shape: {boli_hvg_filtered.shape}")
 print(f"Removed {boli_hvg.n_obs - boli_hvg_filtered.n_obs} cells")
 
 boli_hvg_filtered.write_h5ad("/gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/boli_hvg.h5ad")
+
+# Save CSV with transfer split information
+out = boli_hvg_filtered.obs[["transfer_split_seed1"]].copy()
+out.to_csv("/gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/linear_baseline_split_ctrls.csv", index=True, index_label="cell_barcode", header=False)
