@@ -1,0 +1,26 @@
+# @package _global_
+
+defaults:
+- override /model: linear_additive
+- override /data: boli_ctx
+#- override /hpo: linear_additive_hpo
+#- override /hydra: default
+
+ckpt_path: /gpfs/home/asun/jin_lab/perturbench/1_train/logs/train/multiruns/2025-10-26_17-20-19/1/checkpoints/epoch=9-step=5750.ckpt
+prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv
+
+data:
+    datapath: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/linear_baseline_hvg.h5ad
+    covariate_keys: [predicted.subclass]
+    perturbation_key: Assign
+    perturbation_combination_delimiter: +
+    perturbation_control_value: NT_0
+    evaluation:
+        split_value_to_evaluate: test
+    splitter: 
+        split_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/linear_baseline_split_ctrls.csv
+
+# output directory, generated dynamically on each run
+hydra:
+    run:
+        dir: ${paths.log_dir}/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}_boli_linear_baseline
