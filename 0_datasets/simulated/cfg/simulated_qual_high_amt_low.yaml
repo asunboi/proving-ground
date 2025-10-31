@@ -1,0 +1,27 @@
+# @package _global_
+
+defaults:
+- override /model: latent_additive
+- override /callbacks: default
+- override /data: boli_ctx
+
+data:
+    datapath: /gpfs/home/asun/jin_lab/perturbench/0_datasets/simulated/data/simulated_qual_high_amt_low.h5ad
+    covariate_keys: ["cell_type"]
+    perturbation_key: perturbation
+    perturbation_combination_delimiter: +
+    perturbation_control_value: NTC
+    evaluation:
+        split_value_to_evaluate: val
+    splitter: 
+        split_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/simulated/splits/simulated_qual_high_amt_low_split.csv
+
+# output directory, generated dynamically on each run
+hydra:
+    run:
+        dir: ${paths.log_dir}/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}_simulated_qual_high_amt_low
+    sweep:
+            dir: ${paths.log_dir}/${task_name}/multiruns/${now:%Y-%m-%d}_${now:%H-%M-%S}
+            subdir: ${hydra.job.num}_simulated_qual_high_amt_low
+
+    
