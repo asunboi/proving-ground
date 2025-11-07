@@ -1,0 +1,33 @@
+# conf/config.yaml
+
+dataset:
+  name: boli_251006_3
+
+adata:
+  input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_ctx_scprocess_no+ctrl.h5ad
+
+perturbations:
+  randomize: True
+  random_seed: 3
+  #remove: ["XPO7", "RB1CC1", "SATB2", "CX3CL1", "CUL1", "TBR1"]
+  key: condition
+  control_value: ctrl
+
+covariates:
+  names: ["cell_class"]
+
+splitter:
+  seed: 1
+  max_heldout_fraction_per_covariate: 0.6
+  max_heldout_covariates: 3
+
+output:
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/boli_251006_3/
+  #data_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/data/
+  #csv_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/splits/
+  #fig_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/boli/figures/
+  #yaml_dir: /gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/boli/
+
+note: |
+  Controls split amongst biological replicates, randomly select 6 perturbations to hold out. 
+  Test 3 out of 5.
