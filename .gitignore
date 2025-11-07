@@ -1,6 +1,4 @@
-*.h5ad
-
-# dataset specific ignores
+# Project specific ignores
 0_datasets/boli/
 0_datasets/clean/
 0_datasets/replogle/
@@ -11,3 +9,55 @@
 1_train/initial_splits/
 1_train/logs/
 1_train/outputs/
+
+0_datasets/boli_100225/
+0_datasets/boli_251006_1/
+0_datasets/boli_251006_2/
+0_datasets/boli_251006_3/
+0_datasets/boli_251006_4/
+0_datasets/boli_251006_5/
+0_datasets/replogle_251008_1/
+0_datasets/replogle_251008_2/
+0_datasets/replogle_251008_3/
+0_datasets/replogle_251008_4/
+0_datasets/replogle_251008_5/
+
+# Jupyter Notebook
+**/.ipynb_checkpoints/
+
+# Data repositories
+**/output/
+**/raw_data/
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Datafiles
+*.csv
+*.Robj
+*.tsv
+*.gz
+*.csv
+*.h5
+*.stats.*
+*.h5ad
+
+# Output Files
+*.png
+*.log
+
+# Bioinfo datafiles
+*.sam
+*.fa
+*.bt2
+*.out*
+*.fq*
+*.gtf
+*.bam*
+*.bed
+
+# Bioinfo reference databases
+**/star/
