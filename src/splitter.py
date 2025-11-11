@@ -509,15 +509,16 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
     output_dir = main_dir + "data/"
     csv_dir = main_dir + "splits/"
     fig_dir = main_dir + "figures/"
-    yaml_dir = main_dir + "linear/"
-    yaml_dir = main_dir + "latent/"
+    linear_dir = main_dir + "linear/"
+    latent_dir = main_dir + "latent/"
     toml_dir = main_dir + "toml/"
     
     # Create directories if they don't exist
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(fig_dir, exist_ok=True)
-    os.makedirs(yaml_dir, exist_ok=True)
+    os.makedirs(linear_dir, exist_ok=True)
+    os.makedirs(latent_dir, exist_ok=True)
     os.makedirs(toml_dir, exist_ok=True)
 
     for split_name, df in datasets.items():
@@ -548,7 +549,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         # Generate and save linear YAML config file
         yaml_content = generate_yaml_config("linear_additive", dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
         yaml_filename = f"{dataset_name}_{split_name}.yaml"
-        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        yaml_path = os.path.join(linear_dir, yaml_filename)
         
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
@@ -567,7 +568,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         # Generate and save LA YAML config file
         yaml_content = generate_yaml_config("latent_additive", dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
         yaml_filename = f"{dataset_name}_{split_name}.yaml"
-        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        yaml_path = os.path.join(latent_dir, yaml_filename)
         
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
