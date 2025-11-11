@@ -256,6 +256,76 @@ def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, pe
     
     return datasets
 
+def generate_toml_config(
+    dataset_name: str,
+    h5ad_path: str,
+    df: pd.DataFrame,
+    perturbation_key: str = "condition",
+    covariate_key: str = "cell_class",
+    split_col: str = "transfer_split_seed1",
+    train_label: str = "train",
+) -> str:
+    """
+    Build a TOML config like:
+
+    [datasets]
+    boli_ctx = "/path/to/file.h5ad"
+
+    [training]
+    boli_ctx = "train"
+
+    [zeroshot]
+
+    [fewshot."boli_ctx.L6 CT CTX"]
+    val = ["Xpo7"]
+    test = ["Tbr1", "Satb2"]
+
+    - One [fewshot."<dataset>.<celltype>"] table per unique covariate value.
+    - 'val'/'test' are unique perturbations in those splits for that cell type.
+    """
+
+    def _escape_key(s: str) -> str:
+        # Escape quotes/backslashes for a TOML quoted table key
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
+    def _fmt_array(items: "list[str]") -> "str":
+        items = sorted({str(x) for x in items if pd.notna(x) and str(x).strip() != ""})
+        return "[ " + ", ".join(f'"{x}"' for x in items) + " ]"
+
+    lines = []
+
+    # [datasets]
+    lines.append("[datasets]")
+    lines.append(f'{dataset_name} = "{h5ad_path}"')
+    lines.append("")
+
+    # [training]
+    lines.append("[training]")
+    lines.append(f'{dataset_name} = "{train_label}"')
+    lines.append("")
+
+    # [zeroshot] (left empty unless you later decide to populate)
+    lines.append("[zeroshot]")
+    lines.append("")
+
+    # fewshot blocks per cell type
+    if covariate_key in df.columns and perturbation_key in df.columns and split_col in df.columns:
+        for cov_value, sub in df.groupby(covariate_key, sort=False):
+            val_list = sub.loc[sub[split_col] == "val", perturbation_key].tolist()
+            test_list = sub.loc[sub[split_col] == "test", perturbation_key].tolist()
+
+            # Skip if neither val nor test have items
+            if not val_list and not test_list:
+                continue
+
+            table_key = f'{dataset_name}.{cov_value}'
+            lines.append(f'[fewshot."{_escape_key(table_key)}"]')
+            lines.append(f"val = {_fmt_array(val_list)}")
+            lines.append(f"test = {_fmt_array(test_list)}")
+            lines.append("")
+
+    return "\n".join(lines).rstrip()  # clean trailing newline
+
 def generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path):
     """
     Generate YAML configuration content for a dataset
@@ -394,6 +464,21 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
         
+        # Generate and save TOML config file
+        toml_content = generate_toml_config(
+            dataset_name=dataset_name,
+            h5ad_path=h5ad_path,
+            df=df,
+            perturbation_key=perturbation_key,
+            covariate_key=covariate_key,
+            split_col="transfer_split_seed1",
+            train_label="train",
+        )
+        toml_filename = f"{dataset_name}_{split_name}.toml"
+        toml_path = os.path.join(yaml_dir, toml_filename)
+        with open(toml_path, "w") as f:
+            f.write(toml_content)
+
         # Create symlink in another directory
         link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/" + dataset_name + "/"
         os.makedirs(link_dir, exist_ok=True)
