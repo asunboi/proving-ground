@@ -264,6 +264,7 @@ def generate_toml_config(
     covariate_key: str = "cell_class",
     split_col: str = "transfer_split_seed1",
     train_label: str = "train",
+    control_value: str = "ctrl",
 ) -> str:
     """
     Build a TOML config like:
@@ -310,10 +311,15 @@ def generate_toml_config(
 
     # fewshot blocks per cell type
     if covariate_key in df.columns and perturbation_key in df.columns and split_col in df.columns:
-        for cov_value, sub in df.groupby(covariate_key, sort=False):
-            val_list = sub.loc[sub[split_col] == "val", perturbation_key].tolist()
-            test_list = sub.loc[sub[split_col] == "test", perturbation_key].tolist()
+        control_values = {control_value} if isinstance(control_value, str) else set(control_value)
 
+        for cov_value, sub in df.groupby(covariate_key, sort=False):
+            # filter out control entries
+            val_mask  = (sub[split_col] == "val")  & (~sub[perturbation_key].isin(control_values))
+            test_mask = (sub[split_col] == "test") & (~sub[perturbation_key].isin(control_values))
+
+            val_list  = sub.loc[val_mask,  perturbation_key].tolist()
+            test_list = sub.loc[test_mask, perturbation_key].tolist()
             # Skip if neither val nor test have items
             if not val_list and not test_list:
                 continue
@@ -475,6 +481,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
             covariate_key=covariate_key,
             split_col="transfer_split_seed1",
             train_label="train",
+            control_value=control_value,
         )
         toml_filename = f"{dataset_name}_{split_name}.toml"
         toml_path = os.path.join(toml_dir, toml_filename)
@@ -494,7 +501,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
 
         print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
-@hydra.main(config_path="conf", config_name="config", version_base="1.3")
+@hydra.main(config_path="configs/splitter", config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     

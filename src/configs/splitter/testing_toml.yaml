@@ -21,7 +21,7 @@ splitter:
   max_heldout_covariates: 3
 
 output:
-  main_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/toml/
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/
 
 manual_control: True
 
