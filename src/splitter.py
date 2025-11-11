@@ -85,6 +85,65 @@ def manual_controls(df, condition_col='condition', control_value='ctrl'):
     
     return df
 
+def keep_covariates_with_train_control(
+    df: pd.DataFrame,
+    adata=None,
+    split_col: str = "transfer_split_seed1",
+    perturbation_key: str = "Assign",
+    control_value: str = "NT_0",
+    covariate_key: str = "predicted.subclass",
+):
+    """
+    Restrict to covariate groups (e.g., cell types) that contain at least one
+    training-control example: (split == 'train') & (perturbation == control_value).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with columns [split_col, perturbation_key, covariate_key].
+    adata : anndata.AnnData or None
+        If provided, prints before/after shapes using adata.obs[covariate_key].
+        (No in-place changes to adata.)
+    split_col : str
+        Split column (default: 'transfer_split_seed1').
+    perturbation_key : str
+        Perturbation/condition column (e.g., 'Assign').
+    control_value : str
+        Control value (e.g., 'NT_0').
+    covariate_key : str
+        Covariate column (e.g., 'predicted.subclass').
+
+    Returns
+    -------
+    df_filtered : pd.DataFrame
+        Subset of df containing only rows whose covariate belongs to the valid set.
+    valid_covariates : np.ndarray
+        Array of covariate values that had at least one (train, control) example.
+    """
+    # Find covariates with at least one (train & control) example
+    mask = (df[split_col] == "train") & (df[perturbation_key] == control_value)
+    valid_covariates = df.loc[mask, covariate_key].dropna().unique()
+
+    print(f"Cell types with train + {control_value}: {len(valid_covariates)}")
+    print(f"Valid cell types: {valid_covariates}")
+
+    # Filter df to keep only those covariates
+    original_n = len(df)
+    df_filtered = df[df[covariate_key].isin(valid_covariates)].copy()
+
+    if adata is not None:
+        orig_shape = adata.shape
+        filt_shape_n = int((adata.obs[covariate_key].isin(valid_covariates)).sum())
+        print(f"\nOriginal shape: {orig_shape}")
+        print(f"Filtered shape: ({filt_shape_n}, {orig_shape[1]})")
+        print(f"Removed {orig_shape[0] - filt_shape_n} cells")
+    else:
+        print(f"\nOriginal rows: {original_n}")
+        print(f"Filtered rows: {len(df_filtered)}")
+        print(f"Removed {original_n - len(df_filtered)} rows")
+
+    return df_filtered, valid_covariates
+
 def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer_split_seed1"):
     """
     Make heatmaps of counts per (cell_line, gene) × seed from a DataFrame.
@@ -175,7 +234,16 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer
     return fig, axes
 
 
-def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, perturbation_key, covariate_key, manual_control, base_fractions=[1.0, 0.6, 0.2]):
+def create_dataset_variants(
+        adata, 
+        balanced_transfer_splitter, 
+        perturbations, 
+        perturbation_key, 
+        covariate_key,
+        control_value, 
+        manual_control, 
+        base_fractions=[1.0, 0.6, 0.2], 
+    ):
     """
     Automates the creation of dataset variants with different perturbation exclusions/inclusions
     and different sampling fractions.
@@ -219,7 +287,18 @@ def create_dataset_variants(adata, balanced_transfer_splitter, perturbations, pe
         df_config = balanced_transfer_splitter.obs_dataframe
 
         if manual_control:
-            df_config = manual_controls(df_config)
+            df_config = manual_controls(df_config, condition_col=perturbation_key, control_value=control_value)
+
+        # Keep only covariate groups that have at least one (train & control) example
+        # Assign == perturbation_key, control == "NT_0", covariate == "predicted.subclass"
+        df_config, _valid = keep_covariates_with_train_control(
+            df_config,
+            adata=adata,
+            split_col="transfer_split_seed1",
+            perturbation_key=perturbation_key,
+            control_value=control_value,
+            covariate_key=covariate_key,
+        )
 
         # Add back perturbations as training data
         if config['add_back_as_train']:
@@ -533,6 +612,10 @@ def main(cfg: DictConfig):
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)
 
+    # DROP ALL CT WITH LESS THAN X CELLS
+    mask = adata.obs[covariate_keys[0]].map(adata.obs[covariate_keys[0]].value_counts()) >= 50
+    adata = adata[mask].copy()
+
     # Determine perturbations to remove
     if cfg.perturbations.get('randomize', False):
         # Get all unique perturbations
@@ -577,7 +660,7 @@ def main(cfg: DictConfig):
     )
 
     # Create dataset variants
-    datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0], cfg.manual_control)
+    datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0], cfg.perturbations.control_value, cfg.manual_control)
 
     # Save all datasets
     save_datasets(
