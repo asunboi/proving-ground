@@ -1,0 +1,29 @@
+# conf/config.yaml
+
+dataset:
+  name: toml
+
+adata:
+  input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_ctx_scprocess_no+ctrl.h5ad
+
+perturbations:
+  randomize: False
+  remove: ["XPO7", "RB1CC1", "SATB2", "CX3CL1", "CUL1", "TBR1"]
+  key: condition
+  control_value: ctrl
+
+covariates:
+  names: ["cell_class"]
+
+splitter:
+  seed: 1
+  max_heldout_fraction_per_covariate: 0.6
+  max_heldout_covariates: 3
+
+output:
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/0_datasets/toml/
+
+manual_control: True
+
+note: |
+  Testing TOML generation with the splitter script.
