@@ -1,0 +1,34 @@
+{
+  "decoder_loss": {
+    "saturation_step": 649,
+    "initial_loss": 8.292510986328125,
+    "final_loss": 1.552310796827078,
+    "threshold_value": 1.7075418765097858,
+    "total_steps": 39999,
+    "saturation_pct": 1.622540563514088
+  },
+  "train_loss": {
+    "saturation_step": 1499,
+    "initial_loss": 8.13912582397461,
+    "final_loss": 0.5946081735193729,
+    "threshold_value": 0.6540689908713102,
+    "total_steps": 39999,
+    "saturation_pct": 3.747593689842246
+  },
+  "val/decoder_loss": {
+    "saturation_step": 5999,
+    "initial_loss": 4.255850315093994,
+    "final_loss": 0.8932816177606583,
+    "threshold_value": 0.9826097795367242,
+    "total_steps": 39999,
+    "saturation_pct": 14.99787494687367
+  },
+  "val_loss": {
+    "saturation_step": 7399,
+    "initial_loss": 2.4406063556671143,
+    "final_loss": 0.2517218865454197,
+    "threshold_value": 0.27689407519996173,
+    "total_steps": 39999,
+    "saturation_pct": 18.497962449061227
+  }
+}

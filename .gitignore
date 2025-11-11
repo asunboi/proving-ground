@@ -22,6 +22,15 @@
 0_datasets/replogle_251008_4/
 0_datasets/replogle_251008_5/
 
+src/experiment
+src/perturbench/
+logs/
+debug/
+2_predict/logs/
+0_datasets/toml/
+0_datasets/outputs/
+0_datasets/conf/testing_toml.yaml
+
 # Jupyter Notebook
 **/.ipynb_checkpoints/
 
