@@ -332,7 +332,7 @@ def generate_toml_config(
 
     return "\n".join(lines).rstrip()  # clean trailing newline
 
-def generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path):
+def generate_yaml_config(model_name, dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path):
     """
     Generate YAML configuration content for a dataset
     
@@ -348,7 +348,7 @@ def generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, 
     yaml_template = f"""# @package _global_
 
 defaults:
-- override /model: latent_additive
+- override /model: {model_name}
 - override /callbacks: default
 - override /data: boli_ctx
 
@@ -429,7 +429,8 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
     output_dir = main_dir + "data/"
     csv_dir = main_dir + "splits/"
     fig_dir = main_dir + "figures/"
-    yaml_dir = main_dir + "cfg/"
+    yaml_dir = main_dir + "linear/"
+    yaml_dir = main_dir + "latent/"
     toml_dir = main_dir + "toml/"
     
     # Create directories if they don't exist
@@ -464,14 +465,44 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         h5ad_path = os.path.join(output_dir, h5ad_filename)
         adata_subset.write_h5ad(h5ad_path)
         
-        # Generate and save YAML config file
-        yaml_content = generate_yaml_config(dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
+        # Generate and save linear YAML config file
+        yaml_content = generate_yaml_config("linear_additive", dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
         yaml_filename = f"{dataset_name}_{split_name}.yaml"
         yaml_path = os.path.join(yaml_dir, yaml_filename)
         
         with open(yaml_path, 'w') as f:
             f.write(yaml_content)
+
+        # Create symlink in another directory
+        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/" + dataset_name + "/"
+        os.makedirs(link_dir, exist_ok=True)
+        link_path = os.path.join(link_dir, yaml_filename)
+
+        # Remove existing symlink if it already exists
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+
+        os.symlink(yaml_path, link_path)
         
+        # Generate and save LA YAML config file
+        yaml_content = generate_yaml_config("latent_additive", dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path)
+        yaml_filename = f"{dataset_name}_{split_name}.yaml"
+        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        
+        with open(yaml_path, 'w') as f:
+            f.write(yaml_content)
+
+        # Create symlink in another directory
+        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/" + dataset_name + "/"
+        os.makedirs(link_dir, exist_ok=True)
+        link_path = os.path.join(link_dir, yaml_filename)
+
+        # Remove existing symlink if it already exists
+        if os.path.islink(link_path) or os.path.exists(link_path):
+            os.remove(link_path)
+
+        os.symlink(yaml_path, link_path)
+
         # Generate and save TOML config file
         toml_content = generate_toml_config(
             dataset_name=dataset_name,
@@ -487,17 +518,6 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
         toml_path = os.path.join(toml_dir, toml_filename)
         with open(toml_path, "w") as f:
             f.write(toml_content)
-
-        # Create symlink in another directory
-        link_dir = "/gpfs/home/asun/jin_lab/perturbench/src/perturbench/src/perturbench/configs/experiment/" + dataset_name + "/"
-        os.makedirs(link_dir, exist_ok=True)
-        link_path = os.path.join(link_dir, yaml_filename)
-
-        # Remove existing symlink if it already exists
-        if os.path.islink(link_path) or os.path.exists(link_path):
-            os.remove(link_path)
-
-        os.symlink(yaml_path, link_path)
 
         print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
