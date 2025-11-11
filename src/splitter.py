@@ -424,13 +424,15 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
     csv_dir = main_dir + "splits/"
     fig_dir = main_dir + "figures/"
     yaml_dir = main_dir + "cfg/"
+    toml_dir = main_dir + "toml/"
     
     # Create directories if they don't exist
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(fig_dir, exist_ok=True)
     os.makedirs(yaml_dir, exist_ok=True)
-    
+    os.makedirs(toml_dir, exist_ok=True)
+
     for split_name, df in datasets.items():
         print(f"Saving {split_name}...")
         
@@ -475,7 +477,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
             train_label="train",
         )
         toml_filename = f"{dataset_name}_{split_name}.toml"
-        toml_path = os.path.join(yaml_dir, toml_filename)
+        toml_path = os.path.join(toml_dir, toml_filename)
         with open(toml_path, "w") as f:
             f.write(toml_content)
 
