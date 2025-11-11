@@ -41,8 +41,9 @@ def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_s
 
     # Stratified downsample of train
     train_down = (
-        train_df.groupby(group_keys, group_keys=False, sort=False)
-        .apply(lambda g: g.sample(frac=frac, random_state=random_state))
+        train_df
+        .groupby(group_keys, group_keys=False, sort=False, observed=False)
+        .sample(frac=frac, random_state=random_state)
     )
 
     # Combine train + others
@@ -106,7 +107,7 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer
     """
     # counts
     count_long = (
-        df.groupby([perturbation_key, seed_col, covariate_key])
+        df.groupby([perturbation_key, seed_col, covariate_key], observed=False)
         .size()
         .reset_index(name="count")
     )
@@ -313,7 +314,7 @@ def generate_toml_config(
     if covariate_key in df.columns and perturbation_key in df.columns and split_col in df.columns:
         control_values = {control_value} if isinstance(control_value, str) else set(control_value)
 
-        for cov_value, sub in df.groupby(covariate_key, sort=False):
+        for cov_value, sub in df.groupby(covariate_key, sort=False, observed=False):
             # filter out control entries
             val_mask  = (sub[split_col] == "val")  & (~sub[perturbation_key].isin(control_values))
             test_mask = (sub[split_col] == "test") & (~sub[perturbation_key].isin(control_values))
