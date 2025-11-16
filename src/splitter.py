@@ -407,7 +407,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
 
         print(f"  Saved {csv_filename}, {h5ad_filename}, and {yaml_filename}")
 
-@hydra.main(config_path="conf", config_name="config", version_base="1.3")
+@hydra.main(config_path="configs", config_name="splitter", version_base="1.3")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     
