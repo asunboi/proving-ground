@@ -1,35 +1,35 @@
 # Project specific ignores
-0_datasets/boli/
-0_datasets/clean/
-0_datasets/replogle/
-0_datasets/simulated/
-0_datasets/simulated_2/
-0_datasets/test/
+**/boli/
+**/clean/
+**/replogle/
+**/simulated/
+**/simulated_2/
+**/test/
 
-1_train/initial_splits/
-1_train/logs/
-1_train/outputs/
+**/initial_splits/
+**/logs/
+**/outputs/
 
-0_datasets/boli_100225/
-0_datasets/boli_251006_1/
-0_datasets/boli_251006_2/
-0_datasets/boli_251006_3/
-0_datasets/boli_251006_4/
-0_datasets/boli_251006_5/
-0_datasets/replogle_251008_1/
-0_datasets/replogle_251008_2/
-0_datasets/replogle_251008_3/
-0_datasets/replogle_251008_4/
-0_datasets/replogle_251008_5/
+**/boli_100225/
+**/boli_251006_1/
+**/boli_251006_2/
+**/boli_251006_3/
+**/boli_251006_4/
+**/boli_251006_5/
+**/replogle_251008_1/
+**/replogle_251008_2/
+**/replogle_251008_3/
+**/replogle_251008_4/
+**/replogle_251008_5/
 
 src/experiment
 src/perturbench/
 logs/
 debug/
 2_predict/logs/
-0_datasets/toml/
-0_datasets/outputs/
-0_datasets/conf/testing_toml.yaml
+**/toml/
+**/outputs/
+**/conf/testing_toml.yaml
 
 # Jupyter Notebook
 **/.ipynb_checkpoints/
