@@ -608,7 +608,7 @@ def main(cfg: DictConfig):
     
     covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
 
-    main_dir = cfg.output.main_dir + cfg.dataset.name + '/'
+    main_dir = cfg.output.main_dir + '/'
 
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)

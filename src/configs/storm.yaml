@@ -44,7 +44,7 @@ manual_control: True
 
 note: |
   Testing removal of cells without training controls. 
-  
+
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv
 
