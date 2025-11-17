@@ -1,0 +1,5 @@
+name: boli_100225
+input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_ctx_scprocess_no+ctrl.h5ad
+key: condition
+control_value: ctrl
+names: ["cell_class"]

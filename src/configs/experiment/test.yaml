@@ -1,0 +1,28 @@
+# conf/config.yaml
+# Most recent update Nov 10 2025. 
+
+adata:
+  input_path: /gpfs/group/jin/skim/STATE/state/test_boli_NTsubset/processed_data/Boli_Perturb_CTX_edit_NTsubset_hvg.h5ad
+
+perturbations:
+  randomize: False
+  remove: ["Xpo7_0", "Rb1cc1_0", "Satb2_0", "Cx3cl1_0", "Cul1_0", "Tbr1_0"]
+  key: Assign
+  control_value: NT_0
+
+covariates:
+  names: ["predicted.subclass"]
+
+splitter:
+  seed: 1
+  max_heldout_fraction_per_covariate: 0.6
+  max_heldout_covariates: 3
+
+output:
+  main_dir: outputs/${dataset.name}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
+
+manual_control: True
+
+note: |
+  Testing removal of cells without training controls. 
