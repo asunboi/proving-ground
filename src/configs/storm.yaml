@@ -5,6 +5,7 @@
 defaults:
   - _self_
   - hydra: splitter
+  - splitter: subclass
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule
 
@@ -31,19 +32,14 @@ perturbations:
 covariates:
   names: ["predicted.subclass"]
 
-splitter:
-  seed: 1
-  max_heldout_fraction_per_covariate: 0.6
-  max_heldout_covariates: 3
-
 output:
-  main_dir: outputs/${dataset.name}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
 
-manual_control: True
+manual_control: False
 
 note: |
-  Testing removal of cells without training controls. 
+  Testing splitter without setting manual controls, changing seed.
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv

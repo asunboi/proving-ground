@@ -8,7 +8,21 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import random
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
 
+# jinja2 setup
+# configure template environment once at module level
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATE_DIR = BASE_DIR / "storm/templates"
+
+env = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR),
+    autoescape=False,
+    keep_trailing_newline=True,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
 
 def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_seed1", train_label="train", random_state=42):
     """
@@ -412,9 +426,17 @@ def generate_toml_config(
 
     return "\n".join(lines).rstrip()  # clean trailing newline
 
-def generate_yaml_config(model_name, dataset_name, split_name, h5ad_path, perturbation_key, covariate_key, control_value, csv_path):
+def generate_yaml_config(model_name, 
+                         dataset_name, 
+                         split_name, 
+                         h5ad_path, 
+                         perturbation_key, 
+                         covariate_key, 
+                         control_value, 
+                         csv_path, 
+                         template_name="boli_ctx.yaml.j2"):
     """
-    Generate YAML configuration content for a dataset
+    Render a YAML config from Jinja2 template.
     
     Parameters:
     - split_name: Name of the dataset (e.g., "100_8")
@@ -424,36 +446,18 @@ def generate_yaml_config(model_name, dataset_name, split_name, h5ad_path, pertur
     Returns:
     - yaml_content: String containing the YAML configuration
     """
-    
-    yaml_template = f"""# @package _global_
-
-defaults:
-- override /model: {model_name}
-- override /callbacks: default
-- override /data: boli_ctx
-
-data:
-    datapath: {h5ad_path}
-    covariate_keys: ["{covariate_key}"]
-    perturbation_key: {perturbation_key}
-    perturbation_combination_delimiter: +
-    perturbation_control_value: {control_value}
-    evaluation:
-        split_value_to_evaluate: test
-    splitter: 
-        split_path: {csv_path}
-
-# output directory, generated dynamically on each run
-hydra:
-    run:
-        dir: ${{paths.log_dir}}/${{task_name}}/runs/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}_{dataset_name}_{split_name}
-    sweep:
-            dir: ${{paths.log_dir}}/${{task_name}}/multiruns/${{now:%Y-%m-%d}}_${{now:%H-%M-%S}}
-            subdir: ${{hydra.job.num}}_{dataset_name}_{split_name}
-
-    """
-    
-    return yaml_template
+    template = env.get_template(template_name)
+    yaml_content = template.render(
+            model_name=model_name,
+            dataset_name=dataset_name,
+            split_name=split_name,
+            h5ad_path=h5ad_path,
+            perturbation_key=perturbation_key,
+            covariate_key=covariate_key,
+            control_value=control_value,
+            csv_path=csv_path,
+        )
+    return yaml_content
 
 def generate_prediction_dataframe(df, split_col='transfer_split_seed1', 
                               condition_col='condition', 
@@ -604,6 +608,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
 
 @hydra.main(config_path="configs", config_name="storm", version_base="1.3")
 def main(cfg: DictConfig):
+
     print(OmegaConf.to_yaml(cfg))
     
     covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
