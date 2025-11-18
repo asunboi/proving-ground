@@ -4,7 +4,8 @@ overall
 - [ ] refactor splitter and storm into individual packages
 
 src/storm.py
-- [ ] (aes) use jinja2 to render yaml and other templates
+- [X] (aes) use jinja2 to render yaml and other templates
+finished in Commit 3781434
 
 - [X] (aes) rework how the splitter script outputs files / hydra configuration
 this was way too vague, but i basically made it so that it outputs something like this:
@@ -35,3 +36,5 @@ done in commit 789de8cc5453a6fa49932490f81c59bcda0d4e2a
 - [ ] refactor storm so that dataset downsampling is a seperate function / does not have to run. Potentially even a seperate command?
 
 - [ ] create a handler / wrapper script that submits individual sbatch scripts from a hydra yaml configuration. 
+
+- [ ] refactor storm's save_datasets so that it's mutable in the future and as a seperate function / dataclass
