@@ -1,4 +1,11 @@
 
+# Nov 18
+
+left off working in /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/test/storm/2025-11-17_17-34-20/sbatch, trying to resolve the below issue.
+```
+ValueError("No controls found for covariate condition {'predicted.subclass': 'Sncg'}.")
+full_key: data
+```
 
 # Nov 17
 
