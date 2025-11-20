@@ -21,7 +21,7 @@ dataset:
   name: test
 
 adata:
-  input_path: /gpfs/group/jin/skim/STATE/state/test_boli_NTsubset/processed_data/Boli_Perturb_CTX_edit_NTsubset_hvg.h5ad
+  input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_perturb_ctx_edit_ntsubset_hvg/adata.h5ad
 
 perturbations:
   randomize: False
@@ -36,10 +36,10 @@ output:
   main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
 
-manual_control: False
+manual_control: True
 
 note: |
-  Testing splitter without setting manual controls, changing seed.
+  Testing to see if check_coverage function works properly for cell types without controls.
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv

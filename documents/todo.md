@@ -1,3 +1,7 @@
+# Nov 19
+storm.py
+- [ ] filter to identify cell types with low training counts and assign them as training only
+
 # Nov 18
 
 storm.py

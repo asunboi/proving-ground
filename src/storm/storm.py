@@ -7,6 +7,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import random
 from save import save_datasets
+from anndata import AnnData
+
 
 def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_seed1", train_label="train", random_state=42):
     """
@@ -83,6 +85,137 @@ def manual_controls(df, condition_col='condition', control_value='ctrl'):
     
     return df
 
+def check_coverage(
+    df,
+    condition_col: str = "condition",
+    control_value: str = "ctrl",
+    covariate_col: str = None,
+    split_col: str = "transfer_split_seed1",
+):
+    """
+    Manually assign train/val/test splits based on BioSamp values for control cells only,
+    then check covariate coverage across splits and fix/drop problematic cell types.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns 'BioSamp', condition_col, covariate_col, and split_col.
+    condition_col : str
+        Name of the condition column (default: 'condition').
+    control_value : str
+        Value indicating control cells (default: 'ctrl').
+    covariate_col : str
+        Column name for cell types / covariates (e.g. covariate_keys[0]).
+    split_col : str
+        Column that stores split assignment (default: 'transfer_split_seed1').
+
+    Returns
+    -------
+    pd.DataFrame
+        Updated DataFrame with split_col modified and some rows possibly removed.
+    """
+    df = df.copy()
+
+    # ----------------- manual split for controls -----------------
+    control_mask = df[condition_col] == control_value
+
+    # Train: Batch 1 Sample 1 and 2 (controls only)
+    train_mask = control_mask & df["BioSamp"].str.contains(
+        "batch1_samp[12]", case=False, regex=True, na=False
+    )
+    df.loc[train_mask, split_col] = "train"
+
+    # Val: Batch 2 mouse 1 and 2 (controls only)
+    val_mask = control_mask & df["BioSamp"].str.contains(
+        "batch2_mouse[12]", case=False, regex=True, na=False
+    )
+    df.loc[val_mask, split_col] = "val"
+
+    # Test: Batch 2 mouse 3 (controls only)
+    test_mask = control_mask & df["BioSamp"].str.contains(
+        "batch2_mouse3", case=False, regex=True, na=False
+    )
+    df.loc[test_mask, split_col] = "test"
+
+    # ----------------- covariate coverage checks -----------------
+    if covariate_col is None:
+        print("manual_controls: covariate_col is None, skipping covariate coverage checks.")
+        return df
+
+    if covariate_col not in df.columns:
+        raise KeyError(f"manual_controls: covariate_col '{covariate_col}' not in DataFrame.")
+
+    # Count examples per covariate per split
+    split_counts = (
+        df.groupby(covariate_col, observed=False)[split_col]
+        .value_counts()
+        .unstack(fill_value=0)
+    )
+
+    # Ensure train/val/test columns exist even if zero everywhere
+    for split_name in ("train", "val", "test"):
+        if split_name not in split_counts.columns:
+            split_counts[split_name] = 0
+
+    # Identify problematic covariates (before any fixes)
+    zero_train_initial = split_counts[split_counts["train"] == 0].index.tolist()
+    zero_val_initial = split_counts[split_counts["val"] == 0].index.tolist()
+    zero_test_initial = split_counts[split_counts["test"] == 0].index.tolist()
+
+    # Print summary before modifications
+    if zero_train_initial:
+        print("Cell types with 0 training examples (before removal):")
+        for ct in zero_train_initial:
+            print(f"  - {ct}")
+    else:
+        print("No cell types with 0 training examples.")
+
+    print(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
+    print(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
+    print(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
+
+    # 1) Drop covariates with 0 training examples
+    if zero_train_initial:
+        print("Dropping cell types with 0 training examples from DataFrame:")
+        for ct in zero_train_initial:
+            print(f"  - dropping {ct}")
+        df = df[~df[covariate_col].isin(zero_train_initial)].copy()
+
+    df[covariate_col] = df[covariate_col].cat.remove_unused_categories()
+
+    # 2) Recompute counts after dropping those, then fix val/test coverage
+    if df.empty:
+        print("DataFrame is empty after dropping cell types with 0 training examples.")
+        return df
+
+    split_counts2 = (
+        df.groupby(covariate_col, observed=False)[split_col]
+        .value_counts()
+        .unstack(fill_value=0)
+    )
+    for split_name in ("train", "val", "test"):
+        if split_name not in split_counts2.columns:
+            split_counts2[split_name] = 0
+
+    zero_val_after_drop = split_counts2[split_counts2["val"] == 0].index.tolist()
+    zero_test_after_drop = split_counts2[split_counts2["test"] == 0].index.tolist()
+
+    # Union of covariates with no val or no test (but now all have some train)
+    covariates_to_train_only = sorted(set(zero_val_after_drop) | set(zero_test_after_drop))
+
+    if covariates_to_train_only:
+        print(
+            "Cell types with 0 validation or 0 test examples after dropping no-train types; "
+            "setting all of their splits to 'train':"
+        )
+        for ct in covariates_to_train_only:
+            print(f"  - {ct}")
+        df.loc[df[covariate_col].isin(covariates_to_train_only), split_col] = "train"
+    else:
+        print("All remaining cell types have at least one example in val and test (or both).")
+
+    return df
+
 def keep_covariates_with_train_control(
     df: pd.DataFrame,
     adata=None,
@@ -142,6 +275,146 @@ def keep_covariates_with_train_control(
 
     return df_filtered, valid_covariates
 
+def check_coverage_adata(
+    adata: AnnData,
+    condition_col: str = "condition",
+    control_value: str = "ctrl",
+    covariate_col: str = None,
+    split_col: str = "transfer_split_seed1",
+) -> AnnData:
+    """
+    Apply manual control splitting and coverage checks directly on an AnnData object.
+
+    - Manually assign train/val/test for control cells based on `BioSamp`.
+    - Drop cell types (covariate levels) that have 0 training examples.
+    - For remaining cell types that have 0 val or 0 test, set all their splits to 'train'.
+    - Subset `adata` so X/obs/var all stay consistent.
+
+    Parameters
+    ----------
+    adata : AnnData
+        AnnData with .obs columns: 'BioSamp', condition_col, covariate_col, split_col.
+    condition_col : str
+        Name of the condition column (default: 'condition').
+    control_value : str
+        Value indicating control cells (default: 'ctrl').
+    covariate_col : str
+        Column name for cell types / covariates (e.g. 'predicted.subclass').
+    split_col : str
+        Column that stores split assignment (default: 'transfer_split_seed1').
+
+    Returns
+    -------
+    AnnData
+        New AnnData with updated obs and (possibly) fewer cells.
+    """
+    # Work on a copy so we don't surprise-callers by mutating in place
+    adata = adata.copy()
+    obs = adata.obs
+
+    if covariate_col is None:
+        print("check_coverage_adata: covariate_col is None, skipping coverage checks.")
+        return adata
+    if covariate_col not in obs.columns:
+        raise KeyError(f"check_coverage_adata: covariate_col '{covariate_col}' not in adata.obs")
+
+    # ----------------- manual split for controls -----------------
+    control_mask = obs[condition_col] == control_value
+
+    # Train: Batch 1 Sample 1 and 2 (controls only)
+    train_mask = control_mask & obs["BioSamp"].str.contains(
+        "batch1_samp[12]", case=False, regex=True, na=False
+    )
+    obs.loc[train_mask, split_col] = "train"
+
+    # Val: Batch 2 mouse 1 and 2 (controls only)
+    val_mask = control_mask & obs["BioSamp"].str.contains(
+        "batch2_mouse[12]", case=False, regex=True, na=False
+    )
+    obs.loc[val_mask, split_col] = "val"
+
+    # Test: Batch 2 mouse 3 (controls only)
+    test_mask = control_mask & obs["BioSamp"].str.contains(
+        "batch2_mouse3", case=False, regex=True, na=False
+    )
+    obs.loc[test_mask, split_col] = "test"
+
+    # ----------------- covariate coverage checks -----------------
+    split_counts = (
+        obs.groupby(covariate_col, observed=False)[split_col]
+        .value_counts()
+        .unstack(fill_value=0)
+    )
+
+    # Ensure train/val/test columns exist even if zero everywhere
+    for split_name in ("train", "val", "test"):
+        if split_name not in split_counts.columns:
+            split_counts[split_name] = 0
+
+    zero_train_initial = split_counts[split_counts["train"] == 0].index.tolist()
+    zero_val_initial = split_counts[split_counts["val"] == 0].index.tolist()
+    zero_test_initial = split_counts[split_counts["test"] == 0].index.tolist()
+
+    # Print summary before modifications
+    if zero_train_initial:
+        print("Cell types with 0 training examples (before removal):")
+        for ct in zero_train_initial:
+            print(f"  - {ct}")
+    else:
+        print("No cell types with 0 training examples.")
+
+    print(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
+    print(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
+    print(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
+
+    # 1) Drop covariates with 0 training examples (subset adata!)
+    if zero_train_initial:
+        print("Dropping cell types with 0 training examples from AnnData:")
+        drop_mask = obs[covariate_col].isin(zero_train_initial)
+        for ct in zero_train_initial:
+            print(f"  - dropping {ct}")
+        keep_mask = ~drop_mask.to_numpy()
+        adata = adata[keep_mask].copy()
+        obs = adata.obs  # refresh view after subsetting
+
+    # Remove unused categories if categorical
+    if pd.api.types.is_categorical_dtype(obs[covariate_col]):
+        adata.obs[covariate_col] = obs[covariate_col].cat.remove_unused_categories()
+        obs = adata.obs
+
+    # 2) Recompute counts after dropping those, then fix val/test coverage
+    if adata.n_obs == 0:
+        print("AnnData has 0 cells after dropping no-train cell types.")
+        return adata
+
+    split_counts2 = (
+        obs.groupby(covariate_col, observed=False)[split_col]
+        .value_counts()
+        .unstack(fill_value=0)
+    )
+    for split_name in ("train", "val", "test"):
+        if split_name not in split_counts2.columns:
+            split_counts2[split_name] = 0
+
+    zero_val_after_drop = split_counts2[split_counts2["val"] == 0].index.tolist()
+    zero_test_after_drop = split_counts2[split_counts2["test"] == 0].index.tolist()
+
+    covariates_to_train_only = sorted(set(zero_val_after_drop) | set(zero_test_after_drop))
+
+    if covariates_to_train_only:
+        print(
+            "Cell types with 0 validation or 0 test examples after dropping no-train types; "
+            "setting all of their splits to 'train':"
+        )
+        mask_train_only = obs[covariate_col].isin(covariates_to_train_only)
+        for ct in covariates_to_train_only:
+            print(f"  - {ct}")
+        adata.obs.loc[mask_train_only, split_col] = "train"
+    else:
+        print("All remaining cell types have at least one example in val and test (or both).")
+
+    return adata
+
 def create_dataset_variants(
         adata, 
         balanced_transfer_splitter, 
@@ -195,7 +468,10 @@ def create_dataset_variants(
         df_config = balanced_transfer_splitter.obs_dataframe
 
         if manual_control:
-            df_config = manual_controls(df_config, condition_col=perturbation_key, control_value=control_value)
+            df_config = check_coverage(df_config, 
+                                       condition_col=perturbation_key, 
+                                       control_value=control_value,
+                                       covariate_col=covariate_key)
 
         # Keep only covariate groups that have at least one (train & control) example
         # Assign == perturbation_key, control == "NT_0", covariate == "predicted.subclass"
@@ -256,9 +532,11 @@ def main(cfg: DictConfig):
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)
 
-    # DROP ALL CT WITH LESS THAN X CELLS
-    mask = adata.obs[covariate_keys[0]].map(adata.obs[covariate_keys[0]].value_counts()) >= 50
-    adata = adata[mask].copy()
+    # filter all cell types that don't have training, val, test controls. 
+    adata = check_coverage_adata(adata, 
+                                 condition_col=cfg.perturbations.key, 
+                                 control_value=cfg.perturbations.control_value, 
+                                 covariate_col=covariate_keys[0])
 
     # Determine perturbations to remove
     if cfg.perturbations.get('randomize', False):

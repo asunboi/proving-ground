@@ -28,3 +28,5 @@ state tx train \
       wandb.entity="asunboi-scripps-research" \
       output_dir="test_boli_NTsubset" \
       name="test_boli_NTsubset_run"
+
+state tx predict --output_dir "test_boli_NTsubset/test_boli_NTsubset_run" --checkpoint "final.ckpt"
