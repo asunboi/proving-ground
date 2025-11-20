@@ -36,6 +36,10 @@ Currently this only fixes the control cells, but really it should fix the entire
 
 Actually check_coverage already fixes this. 
 
+Currently for the actual script submission itself, I go into the storm output directories and run the sbatch scripts like below
+`sbatch /gpfs/home/asun/jin_lab/perturbench/src/sbatch/latent.sbatch`. This generates slurm output files in the directories, for state wandb + wandb logs and test_storm_NTsubset directories, and for linear and latent a logs directory. This is kind of convoluted and not what I really want. 
+
+
 
 # Nov 18
 

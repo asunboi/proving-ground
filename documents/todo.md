@@ -5,6 +5,7 @@ storm.py
 - [ ] storm run scripts based on a config, with a setting to specify latest or a specific directory
 potentially depends on dependencies by model origins. 
 
+- [ ] (aes) make it so that all console outputs are redirected to log, both print statements and errors. 
 # Nov 18
 
 storm.py
