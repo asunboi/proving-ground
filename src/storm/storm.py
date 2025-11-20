@@ -188,8 +188,10 @@ def check_coverage(
         print("DataFrame is empty after dropping cell types with 0 training examples.")
         return df
 
+    control_df = df[df[condition_col] == control_value].copy()
+
     split_counts2 = (
-        df.groupby(covariate_col, observed=False)[split_col]
+        control_df.groupby(covariate_col, observed=False)[split_col]
         .value_counts()
         .unstack(fill_value=0)
     )
