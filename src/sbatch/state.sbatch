@@ -5,9 +5,11 @@
 #SBATCH --partition=alphafold,gpu
 #SBATCH --gpus=1
 
-module load state
-
-state tx train \
+apptainer run --nv \
+  --bind /gpfs/home/asun:/gpfs/home/asun \
+  --bind /gpfs/group/jin:/gpfs/group/jin \
+  /tmp/applications/state/0.9.14/bin/state.sif \
+      tx train \
       data.kwargs.toml_config_path="/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/test/storm/2025-11-17_17-34-20/toml/test_qual_high_amt_high.toml" \
       data.kwargs.embed_key="X_hvg" \
       data.kwargs.num_workers=12 \
@@ -15,7 +17,7 @@ state tx train \
       data.kwargs.pert_col="Assign" \
       data.kwargs.cell_type_key="predicted.subclass" \
       data.kwargs.control_pert="NT_0" \
-      training.max_steps=40000 \
+      training.max_steps=10000 \
       training.val_freq=100 \
       training.ckpt_every_n_steps=100 \
       training.batch_size=8 \
@@ -29,4 +31,10 @@ state tx train \
       output_dir="test_boli_NTsubset" \
       name="test_boli_NTsubset_run"
 
-state tx predict --output_dir "test_boli_NTsubset/test_boli_NTsubset_run" --checkpoint "final.ckpt"
+apptainer run --nv \
+  --bind /gpfs/home/asun:/gpfs/home/asun \
+  --bind /gpfs/group/jin:/gpfs/group/jin \
+  /tmp/applications/state/0.9.14/bin/state.sif \
+      tx predict \
+      --output_dir "test_boli_NTsubset/test_boli_NTsubset_run" \
+      --checkpoint "final.ckpt"
