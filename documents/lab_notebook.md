@@ -2,7 +2,7 @@
 # Nov 20
 
 in order of priority today:
-- [ ] look at the analysis output and structure it in a way that can be presented tomorrow
+- [X] look at the analysis output and structure it in a way that can be presented tomorrow
 - [ ] refactor storm, look at class / module responsibilities and add translating / overhead capability.
 - [ ] store environment in SIF image and try to set up cloud
 - [ ] aesthetic improvements to storm
@@ -14,7 +14,7 @@ commit 2e27b30 save.py
 
 I want to calculate the logfc between the control group "Assign" = NT_0 and any other assign groups in a subclass specific manner. eg. only compare CT_SUB to CT_SUB between NT_0 and Bcl11b_0.
 
-
+Created a notebook visualize_storm_output to look at the results for both state and perturbench results. 
 
 # Nov 19
 

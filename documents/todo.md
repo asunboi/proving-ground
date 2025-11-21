@@ -1,6 +1,7 @@
 # Nov 19
 storm.py
-- [ ] filter to identify cell types with low training counts and assign them as training only
+- [X] filter to identify cell types with low training counts and assign them as training only
+
 
 - [ ] storm run scripts based on a config, with a setting to specify latest or a specific directory
 potentially depends on dependencies by model origins. 
