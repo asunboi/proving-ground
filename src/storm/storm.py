@@ -10,6 +10,7 @@ from save import save_datasets
 from anndata import AnnData
 from scale import create_scaled_datasets
 
+
 def choose_perturbations_to_remove(adata, perturbation_key, perturb_cfg) -> list[str]:
     if perturb_cfg.get("randomize", False):
         all_perturbations = adata.obs[perturbation_key].unique().tolist()
@@ -32,7 +33,7 @@ def check_coverage_adata(
     control_value: str = "ctrl",
     covariate_col: str = None,
     split_col: str = "transfer_split_seed1",
-) -> AnnData:
+) -> tuple[AnnData, list[str]]:
     """
     Apply manual control splitting and coverage checks directly on an AnnData object.
 
@@ -152,6 +153,15 @@ def check_coverage_adata(
 
     covariates_to_train_only = sorted(set(zero_val_after_drop) | set(zero_test_after_drop))
 
+    # REFACTOR: put this into the splitter
+    # All covariates still present after previous filtering
+    remaining_covariates = sorted(obs[covariate_col].unique())
+
+    # Those that are NOT in covariates_to_train_only
+    covariates_holdout = sorted(
+        set(remaining_covariates) - set(covariates_to_train_only)
+    )
+
     if covariates_to_train_only:
         print(
             "Cell types with 0 validation or 0 test examples after dropping no-train types; "
@@ -164,7 +174,7 @@ def check_coverage_adata(
     else:
         print("All remaining cell types have at least one example in val and test (or both).")
 
-    return adata
+    return adata, covariates_holdout
 
 @hydra.main(config_path="../configs", config_name="storm", version_base="1.3")
 def main(cfg: DictConfig):
@@ -179,8 +189,10 @@ def main(cfg: DictConfig):
     # Load data
     adata = sc.read_h5ad(cfg.adata.input_path)
 
+    # REFACTOR: shouldn't have to get holdout covariates like this, integrate into splitter.
+    # BUG: this probably still wouldn't work because the below function that uses covariates_holdout doesn't fix the control issue.
     # filter all cell types that don't have training, val, test controls. 
-    adata = check_coverage_adata(adata, 
+    adata, covariates_holdout = check_coverage_adata(adata, 
                                  condition_col=cfg.perturbations.key, 
                                  control_value=cfg.perturbations.control_value, 
                                  covariate_col=covariate_keys[0])
@@ -231,12 +243,21 @@ def main(cfg: DictConfig):
         perturbation_control_value=cfg.perturbations.control_value,
     )
 
-    split = splitter.split_covariates(
+    splitter.split_covariates(
         seed=cfg.splitter.seed,
         print_split=True,
         max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
         max_heldout_covariates=cfg.splitter.max_heldout_covariates,
     )
+
+    # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
+    # BUG: this probably still wouldn't work because the controls get assigned by split_controls. 
+    # splitter.split_covariates_manual(
+    #     seed=cfg.splitter.seed,
+    #     covariates_holdout=covariates_holdout,
+    #     print_split=True,
+    #     max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+    # )
 
     # Create dataset variants
     # datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0], cfg.perturbations.control_value, cfg.manual_control)
