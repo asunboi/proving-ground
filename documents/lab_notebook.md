@@ -1,4 +1,21 @@
 
+# Nov 20
+
+in order of priority today:
+- [ ] look at the analysis output and structure it in a way that can be presented tomorrow
+- [ ] refactor storm, look at class / module responsibilities and add translating / overhead capability.
+- [ ] store environment in SIF image and try to set up cloud
+- [ ] aesthetic improvements to storm
+
+working on the first two simultaneously, since loading and visualizing the dataset is taking a while. 
+
+I want to think about modularizing my code. My package, storm, is meant to be a workflow manager that allows me to compare different models. I have a base configuration for the experiment I want, and then I map that configuration to the input of different models and make sure that I can run them all. Right now, in save.py and in storm.py, I always generate the same output directory and subfolders. But for example, my two models are perturbench and state. Perturbench requires a yaml directory and a splits directory, while state requires a toml directory, and these dependencies are separate from each other. There are some shared directories, such as data, that all models will need. I want to think about ways to refactor this code so that I can drop out and add new models easily, only generating the outputs that each model needs. For example, below is my save.py. 
+commit 2e27b30 save.py
+
+I want to calculate the logfc between the control group "Assign" = NT_0 and any other assign groups in a subclass specific manner. eg. only compare CT_SUB to CT_SUB between NT_0 and Bcl11b_0.
+
+
+
 # Nov 19
 
 when I add a new feature, what are some things i want to consider?
@@ -38,8 +55,6 @@ Actually check_coverage already fixes this.
 
 Currently for the actual script submission itself, I go into the storm output directories and run the sbatch scripts like below
 `sbatch /gpfs/home/asun/jin_lab/perturbench/src/sbatch/latent.sbatch`. This generates slurm output files in the directories, for state wandb + wandb logs and test_storm_NTsubset directories, and for linear and latent a logs directory. This is kind of convoluted and not what I really want. 
-
-
 
 # Nov 18
 

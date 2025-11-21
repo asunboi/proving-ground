@@ -6,6 +6,7 @@ storm.py
 potentially depends on dependencies by model origins. 
 
 - [ ] (aes) make it so that all console outputs are redirected to log, both print statements and errors. 
+
 # Nov 18
 
 storm.py
