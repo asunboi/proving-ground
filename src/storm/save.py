@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
+import logging
+
+log = logging.getLogger(__name__)
 
 # jinja2 setup
 # configure template environment once at module level
@@ -257,8 +260,8 @@ def generate_prediction_dataframe(df, split_col='transfer_split_seed1',
     # Save to CSV
     test_combos.to_csv(output_csv, index=False)
     
-    print(f"Extracted {len(test_combos)} unique test combinations")
-    print(f"Saved to: {output_csv}")
+    log.info(f"Extracted {len(test_combos)} unique test combinations")
+    log.info(f"Saved to: {output_csv}")
     
     return test_combos
 
@@ -310,7 +313,7 @@ def save_datasets(
     layout = SplitLayout(Path(main_dir), dataset_name)
 
     for split_name, df in datasets.items():
-        print(f"Saving {split_name}...")
+        log.info(f"Saving {split_name}...")
         save_single_split(
             df=df,
             split_name=split_name,

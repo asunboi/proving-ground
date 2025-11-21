@@ -9,7 +9,10 @@ import random
 from save import save_datasets
 from anndata import AnnData
 from scale import create_scaled_datasets
+import logging
 
+# module-level logger
+log = logging.getLogger(__name__)
 
 def choose_perturbations_to_remove(adata, perturbation_key, perturb_cfg) -> list[str]:
     if perturb_cfg.get("randomize", False):
@@ -65,7 +68,7 @@ def check_coverage_adata(
     obs = adata.obs
 
     if covariate_col is None:
-        print("check_coverage_adata: covariate_col is None, skipping coverage checks.")
+        log.info("check_coverage_adata: covariate_col is None, skipping coverage checks.")
         return adata
     if covariate_col not in obs.columns:
         raise KeyError(f"check_coverage_adata: covariate_col '{covariate_col}' not in adata.obs")
@@ -109,22 +112,22 @@ def check_coverage_adata(
 
     # Print summary before modifications
     if zero_train_initial:
-        print("Cell types with 0 training examples (before removal):")
+        log.info("Cell types with 0 training examples (before removal):")
         for ct in zero_train_initial:
-            print(f"  - {ct}")
+            log.info(f"  - {ct}")
     else:
-        print("No cell types with 0 training examples.")
+        log.info("No cell types with 0 training examples.")
 
-    print(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
-    print(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
-    print(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
+    log.info(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
+    log.info(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
+    log.info(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
 
     # 1) Drop covariates with 0 training examples (subset adata!)
     if zero_train_initial:
-        print("Dropping cell types with 0 training examples from AnnData:")
+        log.info("Dropping cell types with 0 training examples from AnnData:")
         drop_mask = obs[covariate_col].isin(zero_train_initial)
         for ct in zero_train_initial:
-            print(f"  - dropping {ct}")
+            log.info(f"  - dropping {ct}")
         keep_mask = ~drop_mask.to_numpy()
         adata = adata[keep_mask].copy()
         obs = adata.obs  # refresh view after subsetting
@@ -136,7 +139,7 @@ def check_coverage_adata(
 
     # 2) Recompute counts after dropping those, then fix val/test coverage
     if adata.n_obs == 0:
-        print("AnnData has 0 cells after dropping no-train cell types.")
+        log.info("AnnData has 0 cells after dropping no-train cell types.")
         return adata
 
     split_counts2 = (
@@ -163,23 +166,23 @@ def check_coverage_adata(
     )
 
     if covariates_to_train_only:
-        print(
+        log.info(
             "Cell types with 0 validation or 0 test examples after dropping no-train types; "
             "setting all of their splits to 'train':"
         )
         mask_train_only = obs[covariate_col].isin(covariates_to_train_only)
         for ct in covariates_to_train_only:
-            print(f"  - {ct}")
+            log.info(f"  - {ct}")
         adata.obs.loc[mask_train_only, split_col] = "train"
     else:
-        print("All remaining cell types have at least one example in val and test (or both).")
+        log.info("All remaining cell types have at least one example in val and test (or both).")
 
     return adata, covariates_holdout
 
 @hydra.main(config_path="../configs", config_name="storm", version_base="1.3")
 def main(cfg: DictConfig):
 
-    print(OmegaConf.to_yaml(cfg))
+    log.info(OmegaConf.to_yaml(cfg))
     
     covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
 
@@ -250,8 +253,9 @@ def main(cfg: DictConfig):
         max_heldout_covariates=cfg.splitter.max_heldout_covariates,
     )
 
-    # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
-    # BUG: this probably still wouldn't work because the controls get assigned by split_controls. 
+    # # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
+    # # BUG: different behavior than split covariates, currently doesn't output any splits and causes error due to empty holdout
+    # print(covariates_holdout)
     # splitter.split_covariates_manual(
     #     seed=cfg.splitter.seed,
     #     covariates_holdout=covariates_holdout,
@@ -286,14 +290,14 @@ def main(cfg: DictConfig):
         main_dir=main_dir,
     )
 
-    print("All datasets created and saved successfully!")
+    log.info("All datasets created and saved successfully!")
 
     # Save note as README.md
     if "note" in cfg and cfg.note:
         readme_path = os.path.join(main_dir, "README.md")
         with open(readme_path, "w") as f:
             f.write(cfg.note.strip() + "\n")
-        print(f"Note saved to {readme_path}")
+        log.info(f"Note saved to {readme_path}")
 
 # Main execution
 if __name__ == "__main__":

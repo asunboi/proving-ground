@@ -1,14 +1,14 @@
 # src/perturbench/scale.py (path/name as appropriate)
-
 from __future__ import annotations
-
 from typing import Dict, Iterable, List, Mapping, Sequence
-
 import numpy as np
 import pandas as pd
 from anndata import AnnData
-
+import logging
 from utils import check_coverage
+
+# module-level logger
+log = logging.getLogger(__name__)
 
 def stratified_subsample_train(
     df: pd.DataFrame,
@@ -165,7 +165,7 @@ def create_scaled_datasets(
     datasets: Dict[str, pd.DataFrame] = {}
 
     for config_name, config in dataset_configs.items():
-        print(f"Creating dataset configuration {config_name}...")
+        log.info(f"Creating dataset configuration {config_name}...")
         # Start from the post-split obs dataframe
         df_config = splitter.obs_dataframe.copy()
 
@@ -209,6 +209,6 @@ def create_scaled_datasets(
             # Store the sampled obs dataframe directly
             datasets[dataset_key] = df_sampled
 
-            print(f"  Created {dataset_key} with {len(df_sampled)} cells")
+            log.info(f"  Created {dataset_key} with {len(df_sampled)} cells")
 
     return datasets

@@ -1,3 +1,7 @@
+import logging
+
+log = logging.getLogger(__name__)
+
 def check_coverage(
     df,
     condition_col: str = "condition",
@@ -52,7 +56,7 @@ def check_coverage(
 
     # ----------------- covariate coverage checks -----------------
     if covariate_col is None:
-        print("manual_controls: covariate_col is None, skipping covariate coverage checks.")
+        log.info("manual_controls: covariate_col is None, skipping covariate coverage checks.")
         return df
 
     if covariate_col not in df.columns:
@@ -77,28 +81,28 @@ def check_coverage(
 
     # Print summary before modifications
     if zero_train_initial:
-        print("Cell types with 0 training examples (before removal):")
+        log.info("Cell types with 0 training examples (before removal):")
         for ct in zero_train_initial:
-            print(f"  - {ct}")
+            log.info(f"  - {ct}")
     else:
-        print("No cell types with 0 training examples.")
+        log.info("No cell types with 0 training examples.")
 
-    print(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
-    print(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
-    print(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
+    log.info(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
+    log.info(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
+    log.info(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
 
     # 1) Drop covariates with 0 training examples
     if zero_train_initial:
-        print("Dropping cell types with 0 training examples from DataFrame:")
+        log.info("Dropping cell types with 0 training examples from DataFrame:")
         for ct in zero_train_initial:
-            print(f"  - dropping {ct}")
+            log.info(f"  - dropping {ct}")
         df = df[~df[covariate_col].isin(zero_train_initial)].copy()
 
     df[covariate_col] = df[covariate_col].cat.remove_unused_categories()
 
     # 2) Recompute counts after dropping those, then fix val/test coverage
     if df.empty:
-        print("DataFrame is empty after dropping cell types with 0 training examples.")
+        log.info("DataFrame is empty after dropping cell types with 0 training examples.")
         return df
 
     control_df = df[df[condition_col] == control_value].copy()
@@ -119,14 +123,14 @@ def check_coverage(
     covariates_to_train_only = sorted(set(zero_val_after_drop) | set(zero_test_after_drop))
 
     if covariates_to_train_only:
-        print(
+        log.info(
             "Cell types with 0 validation or 0 test examples after dropping no-train types; "
             "setting all of their splits to 'train':"
         )
         for ct in covariates_to_train_only:
-            print(f"  - {ct}")
+            log.info(f"  - {ct}")
         df.loc[df[covariate_col].isin(covariates_to_train_only), split_col] = "train"
     else:
-        print("All remaining cell types have at least one example in val and test (or both).")
+        log.info("All remaining cell types have at least one example in val and test (or both).")
 
     return df
