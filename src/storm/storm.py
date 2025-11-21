@@ -49,42 +49,6 @@ def stratified_subsample_train(df, frac, group_keys, split_col="transfer_split_s
     # Combine train + others
     return pd.concat([train_down, others_df]).sort_index()
 
-def manual_controls(df, condition_col='condition', control_value='ctrl'):
-    """
-    Manually assign train/val/test splits based on BioSamp values for control cells only.
-    
-    Parameters:
-    - df: DataFrame with columns 'BioSamp', 'condition', and 'transfer_split_seed1'
-    - condition_col: Name of the condition column (default: 'condition')
-    - control_value: Value indicating control cells (default: 'ctrl')
-    
-    Returns:
-    - df: DataFrame with updated 'transfer_split_seed1' column
-    
-    Split logic (applied only to control cells):
-    - Batch 1 Sample 1 and 2 -> train
-    - Batch 2 mouse 1 and 2 -> val
-    - Batch 2 mouse 3 -> test
-    """
-    df = df.copy()
-    
-    # Create mask for control cells only
-    control_mask = df[condition_col] == control_value
-    
-    # Train: Batch 1 Sample 1 and 2 (controls only)
-    train_mask = control_mask & df['BioSamp'].str.contains('batch1_samp[12]', case=False, regex=True, na=False)
-    df.loc[train_mask, 'transfer_split_seed1'] = 'train'
-    
-    # Val: Batch 2 mouse 1 and 2 (controls only)
-    val_mask = control_mask & df['BioSamp'].str.contains('batch2_mouse[12]', case=False, regex=True, na=False)
-    df.loc[val_mask, 'transfer_split_seed1'] = 'val'
-    
-    # Test: Batch 2 mouse 3 (controls only)
-    test_mask = control_mask & df['BioSamp'].str.contains('batch2_mouse3', case=False, regex=True, na=False)
-    df.loc[test_mask, 'transfer_split_seed1'] = 'test'
-    
-    return df
-
 def check_coverage(
     df,
     condition_col: str = "condition",
@@ -217,65 +181,6 @@ def check_coverage(
         print("All remaining cell types have at least one example in val and test (or both).")
 
     return df
-
-def keep_covariates_with_train_control(
-    df: pd.DataFrame,
-    adata=None,
-    split_col: str = "transfer_split_seed1",
-    perturbation_key: str = "Assign",
-    control_value: str = "NT_0",
-    covariate_key: str = "predicted.subclass",
-):
-    """
-    Restrict to covariate groups (e.g., cell types) that contain at least one
-    training-control example: (split == 'train') & (perturbation == control_value).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame with columns [split_col, perturbation_key, covariate_key].
-    adata : anndata.AnnData or None
-        If provided, prints before/after shapes using adata.obs[covariate_key].
-        (No in-place changes to adata.)
-    split_col : str
-        Split column (default: 'transfer_split_seed1').
-    perturbation_key : str
-        Perturbation/condition column (e.g., 'Assign').
-    control_value : str
-        Control value (e.g., 'NT_0').
-    covariate_key : str
-        Covariate column (e.g., 'predicted.subclass').
-
-    Returns
-    -------
-    df_filtered : pd.DataFrame
-        Subset of df containing only rows whose covariate belongs to the valid set.
-    valid_covariates : np.ndarray
-        Array of covariate values that had at least one (train, control) example.
-    """
-    # Find covariates with at least one (train & control) example
-    mask = (df[split_col] == "train") & (df[perturbation_key] == control_value)
-    valid_covariates = df.loc[mask, covariate_key].dropna().unique()
-
-    print(f"Cell types with train + {control_value}: {len(valid_covariates)}")
-    print(f"Valid cell types: {valid_covariates}")
-
-    # Filter df to keep only those covariates
-    original_n = len(df)
-    df_filtered = df[df[covariate_key].isin(valid_covariates)].copy()
-
-    if adata is not None:
-        orig_shape = adata.shape
-        filt_shape_n = int((adata.obs[covariate_key].isin(valid_covariates)).sum())
-        print(f"\nOriginal shape: {orig_shape}")
-        print(f"Filtered shape: ({filt_shape_n}, {orig_shape[1]})")
-        print(f"Removed {orig_shape[0] - filt_shape_n} cells")
-    else:
-        print(f"\nOriginal rows: {original_n}")
-        print(f"Filtered rows: {len(df_filtered)}")
-        print(f"Removed {original_n - len(df_filtered)} rows")
-
-    return df_filtered, valid_covariates
 
 def check_coverage_adata(
     adata: AnnData,
@@ -475,17 +380,6 @@ def create_dataset_variants(
                                        control_value=control_value,
                                        covariate_col=covariate_key)
 
-        # Keep only covariate groups that have at least one (train & control) example
-        # Assign == perturbation_key, control == "NT_0", covariate == "predicted.subclass"
-        df_config, _valid = keep_covariates_with_train_control(
-            df_config,
-            adata=adata,
-            split_col="transfer_split_seed1",
-            perturbation_key=perturbation_key,
-            control_value=control_value,
-            covariate_key=covariate_key,
-        )
-
         # Add back perturbations as training data
         if config['add_back_as_train']:
             # Get rows to add back 
@@ -529,6 +423,7 @@ def main(cfg: DictConfig):
     
     covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
 
+    # REFACTOR: don't declare a new variable / bloat just to add '/'
     main_dir = cfg.output.main_dir + '/'
 
     # Load data
