@@ -38,8 +38,11 @@ output:
 
 manual_control: True
 
+scale:
+  enabled: False
+  base_fractions: [1.0, 0.6, 0.2]
 note: |
-  Testing to see if check_coverage function works properly for cell types without controls.
+  Testing to see if refactored scale.py works as intended. 
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv
