@@ -146,7 +146,15 @@ def create_scaled_datasets(
     if not enable:
         # No scaling; just return the full obs as a single entry.
         # copy() is optional depending on whether you want isolation.
-        return {"full": adata.obs.copy()}
+        df_config = adata.obs.copy()
+        if manual_control:
+            df_config = check_coverage(
+                df_config,
+                condition_col=perturbation_key,
+                control_value=control_value,
+                covariate_col=covariate_key,
+            )
+        return {"full": df_config}
 
     dataset_configs = _make_dataset_configs(perturbations_to_remove)
 
