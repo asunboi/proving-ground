@@ -33,16 +33,14 @@ covariates:
   names: ["predicted.subclass"]
 
 output:
-  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${task_name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
-
-manual_control: True
 
 scale:
   enabled: False
   base_fractions: [1.0, 0.6, 0.2]
 note: |
-  Testing to see if refactored scale.py works as intended. 
+  Testing to see if refactored splitter.py works as intended and whether I can set a split from a state toml file.
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv

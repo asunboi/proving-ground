@@ -1,5 +1,4 @@
 import scanpy as sc
-from perturbench.data.datasplitter import PerturbationDataSplitter
 import numpy as np
 import pandas as pd
 import os
@@ -10,6 +9,7 @@ from save import save_datasets
 from anndata import AnnData
 from scale import create_scaled_datasets
 import logging
+from splitter import PerturbationDataSplitter, apply_toml_manual_split
 
 # module-level logger
 log = logging.getLogger(__name__)
@@ -246,12 +246,19 @@ def main(cfg: DictConfig):
         perturbation_control_value=cfg.perturbations.control_value,
     )
 
-    splitter.split_covariates(
-        seed=cfg.splitter.seed,
-        print_split=True,
-        max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
-        max_heldout_covariates=cfg.splitter.max_heldout_covariates,
-    )
+    if cfg.splitter.manual:
+        apply_toml_manual_split(
+            df_initial,
+            cfg.splitter.toml_path,
+            perturbation_suffix="_0",
+        ) 
+    else:
+        splitter.split_covariates(
+            seed=cfg.splitter.seed,
+            print_split=True,
+            max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+            max_heldout_covariates=cfg.splitter.max_heldout_covariates,
+        )
 
     # # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
     # # BUG: different behavior than split covariates, currently doesn't output any splits and causes error due to empty holdout
@@ -274,7 +281,7 @@ def main(cfg: DictConfig):
         perturbation_key=cfg.perturbations.key,
         covariate_key=covariate_keys[0],
         control_value=cfg.perturbations.control_value,
-        manual_control=cfg.manual_control,
+        manual_control=cfg.splitter.manual_control,
         base_fractions=cfg.scale.base_fractions,
         enable=cfg.scale.enabled,
     )
