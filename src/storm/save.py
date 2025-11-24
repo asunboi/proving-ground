@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 import logging
+from plugins.loader import load_plugins
 
 log = logging.getLogger(__name__)
 
@@ -298,33 +299,79 @@ class SplitLayout:
         # if you really want one shared file per dataset
         return self.main_dir / "prediction_dataframe.csv"
 
-def save_datasets(
-    datasets,
-    adata,
-    dataset_name: str,
-    perturbation_key: str,
-    covariate_key: str,
-    control_value: str,
-    main_dir: str | Path,
-):
-    """
-    High-level orchestration: loop over splits and delegate to helpers.
-    """
-    layout = SplitLayout(Path(main_dir), dataset_name)
+## REFACTOR: working on plugin implementation
+# def save_datasets(
+#     datasets,
+#     adata,
+#     dataset_name: str,
+#     perturbation_key: str,
+#     covariate_key: str,
+#     control_value: str,
+#     main_dir: str | Path,
+# ):
+#     """
+#     High-level orchestration: loop over splits and delegate to helpers.
+#     """
+#     layout = SplitLayout(Path(main_dir), dataset_name)
+
+#     for split_name, df in datasets.items():
+#         log.info(f"Saving {split_name}...")
+#         save_single_split(
+#             df=df,
+#             split_name=split_name,
+#             adata=adata,
+#             layout=layout,
+#             dataset_name=dataset_name,
+#             perturbation_key=perturbation_key,
+#             covariate_key=covariate_key,
+#             control_value=control_value,
+#         )
+
+# projectlayout defines the shared folders with __post_init__, while emit_for_split in the plugins call config_dir to create their respective packages.
+@dataclass
+class ProjectLayout:
+    main_dir: Path
+    dataset_name: str
+
+    def __post_init__(self):
+        self.data_dir   = self.main_dir / "data"
+        self.splits_dir = self.main_dir / "splits"
+        self.fig_dir    = self.main_dir / "figures"
+        for d in (self.data_dir, self.splits_dir, self.fig_dir):
+            d.mkdir(parents=True, exist_ok=True)
+
+    def config_dir(self, model_key: str) -> Path:
+        """Return (and create) a configs/<model_key> directory."""
+        p = self.main_dir / "configs" / model_key
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def prediction_path(self) -> Path:
+        return self.main_dir / "prediction_dataframe.csv"
+    
+def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key,
+                  control_value, main_dir, models):
+    layout = ProjectLayout(Path(main_dir), dataset_name)
+    plugins = load_plugins(models)   # imports only the plugins you asked for
+
+    for p in plugins:
+        p.prepare_dirs(layout)
 
     for split_name, df in datasets.items():
-        log.info(f"Saving {split_name}...")
-        save_single_split(
-            df=df,
-            split_name=split_name,
-            adata=adata,
-            layout=layout,
-            dataset_name=dataset_name,
-            perturbation_key=perturbation_key,
-            covariate_key=covariate_key,
-            control_value=control_value,
-        )
+        # shared artifacts
+        csv_path = layout.splits_dir / f"{dataset_name}_{split_name}_split.csv"
+        df[["transfer_split_seed1"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
 
+        fig_path = layout.fig_dir / f"{dataset_name}_{split_name}_split.png"
+        plot_counts(df, str(fig_path), perturbation_key, covariate_key)
+
+        h5ad_path = layout.data_dir / f"{dataset_name}_{split_name}.h5ad"
+        adata[df.index].write_h5ad(str(h5ad_path))
+
+        # per-model artifacts
+        for plugin in plugins:
+            plugin.emit_for_split(df, dataset_name, split_name, h5ad_path, csv_path,
+                                  perturbation_key, covariate_key, control_value, layout)
 
 def save_single_split(
     df,

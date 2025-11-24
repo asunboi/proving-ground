@@ -36,6 +36,8 @@ output:
   main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
 
+models: ["perturbench", "state"]
+
 scale:
   enabled: False
   base_fractions: [1.0, 0.6, 0.2]

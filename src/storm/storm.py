@@ -286,7 +286,17 @@ def main(cfg: DictConfig):
         enable=cfg.scale.enabled,
     )
 
-    # save all datasets
+    # # save all datasets
+    # save_datasets(
+    #     datasets=datasets,
+    #     adata=adata,
+    #     dataset_name=cfg.dataset.name,
+    #     perturbation_key=cfg.perturbations.key,
+    #     covariate_key=covariate_keys[0],
+    #     control_value=cfg.perturbations.control_value,
+    #     main_dir=main_dir,
+    # )
+
     save_datasets(
         datasets=datasets,
         adata=adata,
@@ -295,6 +305,7 @@ def main(cfg: DictConfig):
         covariate_key=covariate_keys[0],
         control_value=cfg.perturbations.control_value,
         main_dir=main_dir,
+        models=cfg.models
     )
 
     log.info("All datasets created and saved successfully!")

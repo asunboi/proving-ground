@@ -1,0 +1,25 @@
+# @package _global_
+
+defaults:
+  - override /model: {{ model_name }}
+  - override /callbacks: default
+  - override /data: boli_ctx
+
+data:
+  datapath: {{ h5ad_path }}
+  covariate_keys: ["{{ covariate_key }}"]
+  perturbation_key: {{ perturbation_key }}
+  perturbation_combination_delimiter: +
+  perturbation_control_value: {{ control_value }}
+  evaluation:
+    split_value_to_evaluate: test
+  splitter:
+    split_path: {{ csv_path }}
+
+# output directory, generated dynamically on each run
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}_{{ dataset_name }}_{{ split_name }}
+  sweep:
+    dir: ${paths.log_dir}/${task_name}/multiruns/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ${hydra.job.num}_{{ dataset_name }}_{{ split_name }}
