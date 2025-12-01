@@ -1,0 +1,5 @@
+name: boli_scramble
+adata_path: /gpfs/home/asun/jin_lab/perturbench/data/boli_perturb_ctx_edit_ntsubset_hvg/processed/shuffled_assign/adata.h5ad
+perturbation_key: Assign
+control_value: NT_0
+covariate_keys: ["predicted.subclass"]

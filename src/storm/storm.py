@@ -184,20 +184,24 @@ def main(cfg: DictConfig):
 
     log.info(OmegaConf.to_yaml(cfg))
     
-    covariate_keys = OmegaConf.to_container(cfg.covariates.names, resolve=True)
+    covariate_keys = OmegaConf.to_container(cfg.data.covariate_keys, resolve=True)
 
     # REFACTOR: don't declare a new variable / bloat just to add '/'
     main_dir = cfg.output.main_dir + '/'
 
     # Load data
-    adata = sc.read_h5ad(cfg.adata.input_path)
+    adata = sc.read_h5ad(cfg.data.adata_path)
+
+    # HACK: DROP ALL CT WITH LESS THAN X CELLS
+    mask = adata.obs[covariate_keys[0]].map(adata.obs[covariate_keys[0]].value_counts()) >= 50
+    adata = adata[mask].copy()
 
     # REFACTOR: shouldn't have to get holdout covariates like this, integrate into splitter.
     # BUG: this probably still wouldn't work because the below function that uses covariates_holdout doesn't fix the control issue.
     # filter all cell types that don't have training, val, test controls. 
     adata, covariates_holdout = check_coverage_adata(adata, 
-                                 condition_col=cfg.perturbations.key, 
-                                 control_value=cfg.perturbations.control_value, 
+                                 condition_col=cfg.data.perturbation_key, 
+                                 control_value=cfg.data.control_value, 
                                  covariate_col=covariate_keys[0])
 
     # # REFACTOR: put this into scale.py
@@ -300,7 +304,7 @@ def main(cfg: DictConfig):
     save_datasets(
         datasets=datasets,
         adata=adata,
-        dataset_name=cfg.dataset.name,
+        dataset_name=cfg.data.name,
         perturbation_key=cfg.perturbations.key,
         covariate_key=covariate_keys[0],
         control_value=cfg.perturbations.control_value,

@@ -4,6 +4,7 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
+  - data: boli_scramble
   - hydra: splitter
   - splitter: subclass
   # experiment configs allow for version control of specific hyperparameters
@@ -17,23 +18,14 @@ defaults:
 # task name, determines output directory path
 task_name: "storm"
 
-dataset:
-  name: test
-
-adata:
-  input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_perturb_ctx_edit_ntsubset_hvg/adata.h5ad
-
 perturbations:
   randomize: False
   remove: ["Xpo7_0", "Rb1cc1_0", "Satb2_0", "Cx3cl1_0", "Cul1_0", "Tbr1_0"]
   key: Assign
   control_value: NT_0
 
-covariates:
-  names: ["predicted.subclass"]
-
 output:
-  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${dataset.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
 
 models: ["perturbench", "state"]
@@ -41,8 +33,9 @@ models: ["perturbench", "state"]
 scale:
   enabled: False
   base_fractions: [1.0, 0.6, 0.2]
+  
 note: |
-  Testing to see if refactored splitter.py works as intended and whether I can set a split from a state toml file.
+  Testing performance with random split and no manual controls. 
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv
