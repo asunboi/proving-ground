@@ -213,34 +213,207 @@ class PerturbationDataSplitter:
             split_key,
         ] = "test"
 
+    ## FIX: ensure at least 3 cells in control and that 1 cell each in train/val/test
+    # def _split_controls(
+    #     self,
+    #     seed,
+    #     split_key,
+    #     train_control_fraction,
+    # ):
+    #     random.seed(seed)
+    #     ctrl_ix = list(
+    #         self.obs_dataframe.loc[
+    #             self.obs_dataframe[self.perturbation_key]
+    #             == self.perturbation_control_value
+    #         ].index
+    #     )
+    #     ctrl_ix = random.sample(ctrl_ix, k=len(ctrl_ix))
+
+    #     val_control_frac = (1 - train_control_fraction) / 2
+
+    #     train_ctrl_ix, val_ctrl_ix, test_ctrl_ix = np.split(
+    #         ctrl_ix,
+    #         [
+    #             int(train_control_fraction * len(ctrl_ix)),
+    #             int((val_control_frac + train_control_fraction) * len(ctrl_ix)),
+    #         ],
+    #     )
+
+    #     self.obs_dataframe.loc[train_ctrl_ix, split_key] = "train"
+    #     self.obs_dataframe.loc[val_ctrl_ix, split_key] = "val"
+    #     self.obs_dataframe.loc[test_ctrl_ix, split_key] = "test"
+
+    # def _split_controls(
+    #     self,
+    #     seed,
+    #     split_key,
+    #     train_control_fraction,
+    # ):
+    #     """
+    #     Split control cells into train/val/test, requiring at least 1 cell in each
+    #     split whenever possible.
+
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If there are fewer than 3 control cells, since it's impossible to have
+    #         at least 1 in train/val/test.
+    #     """
+    #     random.seed(seed)
+    #     ctrl_ix = list(
+    #         self.obs_dataframe.loc[
+    #             self.obs_dataframe[self.perturbation_key]
+    #             == self.perturbation_control_value
+    #         ].index
+    #     )
+
+    #     n_ctrl = len(ctrl_ix)
+    #     if n_ctrl < 3:
+    #         raise ValueError(
+    #             f"Need at least 3 control cells to allocate at least one to "
+    #             f"train/val/test, but got {n_ctrl}."
+    #         )
+
+    #     # Randomize order
+    #     ctrl_ix = random.sample(ctrl_ix, k=n_ctrl)
+
+    #     # Initial fractional allocation
+    #     val_control_frac = (1 - train_control_fraction) / 2
+
+    #     n_train = int(round(train_control_fraction * n_ctrl))
+    #     n_val = int(round(val_control_frac * n_ctrl))
+    #     n_test = n_ctrl - n_train - n_val  # ensure sum matches
+
+    #     # Fix edge cases: enforce at least 1 in each split
+    #     splits = {"train": n_train, "val": n_val, "test": n_test}
+
+    #     # As long as we have n_ctrl >= 3, we can always make each >=1 by
+    #     # borrowing from the largest split(s) that still have >1.
+    #     while min(splits.values()) < 1:
+    #         # find a split that needs at least 1
+    #         need = next(k for k, v in splits.items() if v < 1)
+
+    #         # find a donor split with the largest size > 1
+    #         donors = [k for k, v in splits.items() if v > 1]
+    #         if not donors:
+    #             # Should not happen if n_ctrl >= 3, but guard anyway
+    #             break
+    #         donor = max(donors, key=lambda k: splits[k])
+
+    #         splits[need] += 1
+    #         splits[donor] -= 1
+
+    #     n_train = splits["train"]
+    #     n_val = splits["val"]
+    #     n_test = splits["test"]
+
+    #     # Sanity check
+    #     assert n_train >= 1 and n_val >= 1 and n_test >= 1
+    #     assert n_train + n_val + n_test == n_ctrl
+
+    #     train_ctrl_ix, val_ctrl_ix, test_ctrl_ix = np.split(
+    #         ctrl_ix,
+    #         [n_train, n_train + n_val],
+    #     )
+
+    #     self.obs_dataframe.loc[train_ctrl_ix, split_key] = "train"
+    #     self.obs_dataframe.loc[val_ctrl_ix, split_key] = "val"
+    #     self.obs_dataframe.loc[test_ctrl_ix, split_key] = "test"
+
     def _split_controls(
         self,
         seed,
         split_key,
         train_control_fraction,
     ):
+        """
+        Split control cells into train/val/test, requiring at least 1 control cell
+        in each split *per covariate* (defined by self.covariate_keys).
+
+        Raises
+        ------
+        ValueError
+            If any covariate group has fewer than 3 control cells.
+        """
         random.seed(seed)
-        ctrl_ix = list(
-            self.obs_dataframe.loc[
-                self.obs_dataframe[self.perturbation_key]
-                == self.perturbation_control_value
-            ].index
-        )
-        ctrl_ix = random.sample(ctrl_ix, k=len(ctrl_ix))
 
-        val_control_frac = (1 - train_control_fraction) / 2
+        df = self.obs_dataframe
 
-        train_ctrl_ix, val_ctrl_ix, test_ctrl_ix = np.split(
-            ctrl_ix,
-            [
-                int(train_control_fraction * len(ctrl_ix)),
-                int((val_control_frac + train_control_fraction) * len(ctrl_ix)),
-            ],
-        )
+        # All control cells
+        ctrl_mask = df[self.perturbation_key] == self.perturbation_control_value
+        ctrl_df = df.loc[ctrl_mask]
 
-        self.obs_dataframe.loc[train_ctrl_ix, split_key] = "train"
-        self.obs_dataframe.loc[val_ctrl_ix, split_key] = "val"
-        self.obs_dataframe.loc[test_ctrl_ix, split_key] = "test"
+        # Determine covariate columns
+        covariate_cols = getattr(self, "covariate_keys", None)
+        if covariate_cols is None:
+            raise ValueError(
+                "covariate_keys must be set on the object to split controls per covariate."
+            )
+        if isinstance(covariate_cols, str):
+            covariate_cols = [covariate_cols]
+
+        # Fractions for val/test given total control fraction
+        val_control_frac = (1.0 - train_control_fraction) / 2.0
+
+        # Group controls by covariate(s) and split within each group
+        for cov_value, idx in ctrl_df.groupby(covariate_cols, observed=False).groups.items():
+            cov_ix = list(idx)
+            n_ctrl = len(cov_ix)
+
+            # We need at least 3 control cells in this covariate group
+            if n_ctrl < 3:
+                raise ValueError(
+                    f"Need at least 3 control cells for covariate group {cov_value} "
+                    f"to allocate ≥1 to train/val/test, but got {n_ctrl}."
+                )
+
+            # Shuffle indices within this covariate group
+            cov_ix = random.sample(cov_ix, k=n_ctrl)
+
+            # Initial allocation based on fractions
+            n_train = int(round(train_control_fraction * n_ctrl))
+            n_val = int(round(val_control_frac * n_ctrl))
+            n_test = n_ctrl - n_train - n_val  # ensure sum matches exactly
+
+            splits = {"train": n_train, "val": n_val, "test": n_test}
+
+            # Enforce at least 1 per split by borrowing from the largest donors
+            while min(splits.values()) < 1:
+                # Split that needs at least one
+                need = next(k for k, v in splits.items() if v < 1)
+
+                # Donors with >1 cell
+                donors = [k for k, v in splits.items() if v > 1]
+                if not donors:
+                    # With n_ctrl >= 3 this shouldn't happen, but keep a guard
+                    raise RuntimeError(
+                        f"Could not allocate at least one cell per split for covariate "
+                        f"group {cov_value} (splits={splits}, n_ctrl={n_ctrl})."
+                    )
+
+                donor = max(donors, key=lambda k: splits[k])
+                splits[need] += 1
+                splits[donor] -= 1
+
+            n_train = splits["train"]
+            n_val = splits["val"]
+            n_test = splits["test"]
+
+            # Final sanity checks
+            assert n_train >= 1 and n_val >= 1 and n_test >= 1
+            assert n_train + n_val + n_test == n_ctrl
+
+            train_ix, val_ix, test_ix = np.split(
+                cov_ix,
+                [n_train, n_train + n_val],
+            )
+
+            df.loc[train_ix, split_key] = "train"
+            df.loc[val_ix, split_key] = "val"
+            df.loc[test_ix, split_key] = "test"
+
+        # write back (df is self.obs_dataframe view, but keep explicit)
+        self.obs_dataframe = df
 
     def _summarize_split(self, split_key):
         unique_covariates_merged = [x for x in set(self.covariates_merged)]
