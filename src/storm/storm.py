@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 import random
 from save import save_datasets
 from anndata import AnnData
@@ -179,6 +179,37 @@ def check_coverage_adata(
 
     return adata, covariates_holdout
 
+def normalize_seeds(seed_cfg):
+    """
+    Turn cfg.splitter.seed into an iterable of ints.
+
+    Handles:
+      - int
+      - list / tuple / range
+      - OmegaConf ListConfig
+      - optional string like 'range(1,11)'
+    """
+    # Optional: parse 'range(a,b,step)' style strings
+    if isinstance(seed_cfg, str) and seed_cfg.startswith("range(") and seed_cfg.endswith(")"):
+        inner = seed_cfg[len("range("):-1]
+        parts = [int(x.strip()) for x in inner.split(",") if x.strip()]
+
+        if len(parts) == 1:
+            return range(parts[0])
+        elif len(parts) == 2:
+            return range(parts[0], parts[1])
+        elif len(parts) == 3:
+            return range(parts[0], parts[1], parts[2])
+        else:
+            raise ValueError(f"Unsupported range spec: {seed_cfg}")
+
+    # Already some kind of iterable container
+    if isinstance(seed_cfg, (ListConfig, list, tuple, range)):
+        return [int(s) for s in seed_cfg]
+
+    # Scalar → wrap into list
+    return [int(seed_cfg)]
+
 @hydra.main(config_path="../configs", config_name="storm", version_base="1.3")
 def main(cfg: DictConfig):
 
@@ -204,33 +235,8 @@ def main(cfg: DictConfig):
                                  control_value=cfg.data.control_value, 
                                  covariate_col=covariate_keys[0])
 
-    # # REFACTOR: put this into scale.py
+     # # REFACTOR: put this into scale.py
     # # Determine perturbations to remove
-    # if cfg.perturbations.get('randomize', False):
-    #     # Get all unique perturbations
-    #     all_perturbations = adata.obs[cfg.perturbations.key].unique().tolist()
-        
-    #     # Remove control from the list if it exists
-    #     control_value = cfg.perturbations.get('control_value', 'ctrl')
-    #     if control_value in all_perturbations:
-    #         all_perturbations.remove(control_value)
-        
-    #     # Shuffle with seed
-    #     seed = cfg.perturbations.get('random_seed', 42)
-    #     random.seed(seed)
-    #     np.random.seed(seed)
-    #     random.shuffle(all_perturbations)
-        
-    #     # Take top N perturbations to remove
-    #     n_remove = cfg.perturbations.get('n_remove', 6)
-    #     perturbations_to_remove = all_perturbations[:n_remove]
-        
-    #     print(f"Randomly selected perturbations to remove (seed={seed}): {perturbations_to_remove}")
-    # else:
-    #     # Use manually specified list
-    #     perturbations_to_remove = OmegaConf.to_container(cfg.perturbations.remove, resolve=True)
-    #     print(f"Using specified perturbations to remove: {perturbations_to_remove}")
-
     if cfg.scale.enabled:
         perturbations_to_remove = choose_perturbations_to_remove(
             adata=adata,
@@ -250,6 +256,8 @@ def main(cfg: DictConfig):
         perturbation_control_value=cfg.perturbations.control_value,
     )
 
+    seeds = normalize_seeds(cfg.splitter.seed)
+
     if cfg.splitter.manual:
         apply_toml_manual_split(
             df_initial,
@@ -257,12 +265,13 @@ def main(cfg: DictConfig):
             perturbation_suffix="_0",
         ) 
     else:
-        splitter.split_covariates(
-            seed=cfg.splitter.seed,
-            print_split=True,
-            max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
-            max_heldout_covariates=cfg.splitter.max_heldout_covariates,
-        )
+        for seed in seeds:
+            splitter.split_covariates(
+                seed=seed,
+                print_split=True,
+                max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+                max_heldout_covariates=cfg.splitter.max_heldout_covariates,
+            )
 
     # # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
     # # BUG: different behavior than split covariates, currently doesn't output any splits and causes error due to empty holdout
@@ -309,7 +318,8 @@ def main(cfg: DictConfig):
         covariate_key=covariate_keys[0],
         control_value=cfg.perturbations.control_value,
         main_dir=main_dir,
-        models=cfg.models
+        models=cfg.models,
+        seeds=seeds,
     )
 
     log.info("All datasets created and saved successfully!")

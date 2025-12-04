@@ -12,7 +12,7 @@ class ModelPlugin(ABC):
     @abstractmethod
     def emit_for_split(
         self, df: pd.DataFrame, dataset_name: str, split_name: str,
-        h5ad_path: Path, csv_path: Path,
-        perturbation_key: str, covariate_key: str, control_value: str, layout
+        h5ad_path: Path,
+        perturbation_key: str, covariate_key: str, control_value: str, seed: int, layout
     ) -> None:
         ...

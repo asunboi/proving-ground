@@ -9,7 +9,7 @@ from plugins.loader import load_plugins
 
 log = logging.getLogger(__name__)
 
-def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer_split_seed1"):
+def plot_counts(df, outfile, perturbation_key, covariate_key, seed):
     """
     Make heatmaps of counts per (cell_line, gene) × seed from a DataFrame.
 
@@ -29,6 +29,8 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed_col="transfer
     fig : matplotlib.figure.Figure
     axes : np.ndarray of Axes
     """
+    seed_col = "transfer_split_seed" + str(seed)
+
     # counts
     count_long = (
         df.groupby([perturbation_key, seed_col, covariate_key], observed=False)
@@ -106,22 +108,31 @@ class ProjectLayout:
 
     def __post_init__(self):
         self.data_dir   = self.main_dir / "data"
-        self.splits_dir = self.main_dir / "splits"
+        #self.splits_dir = self.main_dir / "splits"
         self.fig_dir    = self.main_dir / "figures"
-        for d in (self.data_dir, self.splits_dir, self.fig_dir):
+        for d in (self.data_dir, self.fig_dir):
             d.mkdir(parents=True, exist_ok=True)
 
-    def config_dir(self, model_key: str) -> Path:
+    def config_dir(self, seed_dir, model_key: str) -> Path:
         """Return (and create) a configs/<model_key> directory."""
-        p = self.main_dir / "configs" / model_key
+        p = seed_dir / "configs" / model_key
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    def seed_dir(self, seed: int) -> Path:
+        """
+        Return (and create) the directory for a given seed:
+        <main_dir>/seed_{seed}
+        """
+        d = self.main_dir / f"seed_{seed}" 
+        d.mkdir(parents=True, exist_ok=True)
+        return d
 
     def prediction_path(self) -> Path:
         return self.main_dir / "prediction_dataframe.csv"
     
 def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key,
-                  control_value, main_dir, models):
+                  control_value, main_dir, models, seeds):
     layout = ProjectLayout(Path(main_dir), dataset_name)
     plugins = load_plugins(models)   # imports only the plugins you asked for
 
@@ -130,16 +141,21 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
 
     for split_name, df in datasets.items():
         # shared artifacts
-        csv_path = layout.splits_dir / f"{dataset_name}_{split_name}_split.csv"
-        df[["transfer_split_seed1"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
-
-        fig_path = layout.fig_dir / f"{dataset_name}_{split_name}_split.png"
-        plot_counts(df, str(fig_path), perturbation_key, covariate_key)
+        #csv_path = layout.splits_dir / f"{dataset_name}_{split_name}_split.csv"
+        #df[["transfer_split_seed1"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
 
         h5ad_path = layout.data_dir / f"{dataset_name}_{split_name}.h5ad"
         adata[df.index].write_h5ad(str(h5ad_path))
 
-        # per-model artifacts
-        for plugin in plugins:
-            plugin.emit_for_split(df, dataset_name, split_name, h5ad_path, csv_path,
-                                  perturbation_key, covariate_key, control_value, layout)
+        for seed in seeds:
+            # create seed directory
+            seed_dir = layout.seed_dir(seed)
+
+            # create figures of seeded splits
+            fig_path = layout.fig_dir / f"{dataset_name}_{split_name}_seed{seed}.png"
+            plot_counts(df, str(fig_path), perturbation_key, covariate_key, seed)
+
+            # per-model artifacts
+            for plugin in plugins:
+                plugin.emit_for_split(df, dataset_name, split_name, h5ad_path,
+                                    perturbation_key, covariate_key, control_value, seed, layout)

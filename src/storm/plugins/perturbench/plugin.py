@@ -69,22 +69,28 @@ class Plugin(ModelPlugin):
         ## for now, one config is enough because I can use hydra multirun to run perturbench
         # layout.config_dir("perturbench/linear_additive")
         # layout.config_dir("perturbench/latent_additive")
-        layout.config_dir("perturbench")
+        #layout.config_dir("perturbench")
         (self.experiment_root / layout.dataset_name).mkdir(parents=True, exist_ok=True)
 
-    def emit_for_split(self, df, dataset_name, split_name, h5ad_path, csv_path,
-                       perturbation_key, covariate_key, control_value, layout):
+    def emit_for_split(self, df, dataset_name, split_name, h5ad_path,
+                       perturbation_key, covariate_key, control_value, seed, layout):
+
+        seed_dir = layout.seed_dir(seed)
+        out_dir = layout.config_dir(seed_dir, f"perturbench")
+        
+        #TODO: fix csv path
+        csv_path = out_dir / f"{dataset_name}_{split_name}_split.csv"
+        df[[f"transfer_split_seed{seed}"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
 
         # write yaml files and symlink them
         model_name = "linear_additive"
-        yaml_filename = f"{dataset_name}_{split_name}.yaml"
+        yaml_filename = f"{dataset_name}_{split_name}_seed{seed}.yaml"
         text = generate_yaml_config(
             "boli_ctx.yaml.j2",
             model_name=model_name, dataset_name=dataset_name, split_name=split_name,
             h5ad_path=str(h5ad_path), perturbation_key=perturbation_key,
             covariate_key=covariate_key, control_value=control_value, csv_path=str(csv_path)
         )
-        out_dir = layout.config_dir(f"perturbench")
         yaml_path = out_dir / yaml_filename
         yaml_path.write_text(text)
 
@@ -96,11 +102,11 @@ class Plugin(ModelPlugin):
         os.symlink(yaml_path, link_path)
 
         # write sbatch files
-        sbatch_filename = f"{dataset_name}_{split_name}.sbatch"
+        sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
         sbatch = generate_yaml_config(
             "sbatch.j2",
             dataset_name=dataset_name,
-            yaml_filename=f"{dataset_name}_{split_name}",
+            yaml_filename=f"{dataset_name}_{split_name}_seed{seed}",
         )
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)

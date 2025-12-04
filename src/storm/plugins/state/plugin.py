@@ -28,14 +28,19 @@ class Plugin(ModelPlugin):
     key = "state"
 
     def prepare_dirs(self, layout):
-        layout.config_dir("state")
+        pass
 
-    def emit_for_split(self, df, dataset_name, split_name, h5ad_path, csv_path,
-                       perturbation_key, covariate_key, control_value, layout):
+    def emit_for_split(self, df, dataset_name, split_name, h5ad_path,
+                       perturbation_key, covariate_key, control_value, seed, layout):
+        
+        seed_dir = layout.seed_dir(seed)
+        out_dir = layout.config_dir(seed_dir, f"state")
+        
         toml_text = generate_toml_config(dataset_name, str(h5ad_path), df,
                                          perturbation_key, covariate_key,
-                                         split_col="transfer_split_seed1",
+                                         split_col=f"transfer_split_seed{seed}",
                                          train_label="train",
                                          control_value=control_value)
-        out = layout.config_dir("state") / f"{dataset_name}_{split_name}.toml"
+        
+        out = out_dir / f"{dataset_name}_{split_name}.toml"
         out.write_text(toml_text)
