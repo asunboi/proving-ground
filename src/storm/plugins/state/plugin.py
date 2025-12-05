@@ -2,6 +2,22 @@
 from pathlib import Path
 import pandas as pd
 from ..base import ModelPlugin
+from importlib import resources
+from jinja2 import Environment, FileSystemLoader
+import logging
+
+# module-level logger
+log = logging.getLogger(__name__)
+
+def _env():
+    # templates packaged under storm/plugins/perturbench/templates/
+    tmpl_dir = resources.files(__package__) / "templates"
+    return Environment(loader=FileSystemLoader(str(tmpl_dir)),
+                       autoescape=False, keep_trailing_newline=True,
+                       trim_blocks=True, lstrip_blocks=True)
+
+def _generate_from_template(template_name, **kwargs) -> str:
+    return _env().get_template(template_name).render(**kwargs)
 
 def _escape_key(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
@@ -42,5 +58,19 @@ class Plugin(ModelPlugin):
                                          train_label="train",
                                          control_value=control_value)
         
-        out = out_dir / f"{dataset_name}_{split_name}.toml"
-        out.write_text(toml_text)
+        toml_path = out_dir / f"{dataset_name}_{split_name}.toml"
+        toml_path.write_text(toml_text)
+
+        # write sbatch files
+        sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
+        sbatch = _generate_from_template(
+            "state_sbatch.j2",
+            toml_config_path=toml_path,
+            perturbation_key=perturbation_key,
+            covariate_key=covariate_key,
+            control_value=control_value,
+            dataset_name=dataset_name,
+            output_dir=out_dir,
+        )
+        sbatch_path = out_dir / sbatch_filename
+        sbatch_path.write_text(sbatch)
