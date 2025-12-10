@@ -29,12 +29,14 @@ apptainer run --nv \
       wandb.tags={{ dataset_name }} \
       wandb.entity="asunboi-scripps-research" \
       output_dir={{ output_dir }} \
-      name={{ dataset_name }}
+      name={{ state_dir }}
 
 apptainer run --nv \
   --bind /gpfs/home/asun:/gpfs/home/asun \
   --bind /gpfs/group/jin:/gpfs/group/jin \
+  --bind /gpfs/home/asun/containers/state_sandbox/root/.local/share/uv/tools/arc-state/lib/python3.10/site-packages/state/_cli/_tx/_predict.py:/root/.local/share/uv/tools/arc-state/lib/python3.10/site-packages/state/_cli/_tx/_predict.py \
   /tmp/applications/state/0.9.14/bin/state.sif \
       tx predict \
-      --output_dir {{ output_dir }} \
-      --checkpoint "final.ckpt"
+      --output_dir {{ output_dir }}/{{ state_dir }} \
+      --checkpoint "final.ckpt" \
+      --predict_only

@@ -63,6 +63,7 @@ class Plugin(ModelPlugin):
 
         # write sbatch files
         sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
+        state_dir = f"{dataset_name}_seed{seed}"
         sbatch = _generate_from_template(
             "state_sbatch.j2",
             toml_config_path=toml_path,
@@ -71,6 +72,7 @@ class Plugin(ModelPlugin):
             control_value=control_value,
             dataset_name=dataset_name,
             output_dir=out_dir,
+            state_dir=state_dir,
         )
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)
