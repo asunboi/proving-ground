@@ -1,5 +1,5 @@
-name: boli_100225
-input_path: /gpfs/home/asun/jin_lab/perturbench/raw_data/boli_ctx_scprocess_no+ctrl.h5ad
-key: condition
-control_value: ctrl
-names: ["cell_class"]
+name: boli
+adata_path: /gpfs/home/asun/jin_lab/perturbench/data/boli_perturb_ctx_edit_ntsubset_hvg/raw/adata.h5ad
+perturbation_key: Assign
+control_value: NT_0
+covariate_keys: ["predicted.subclass"]

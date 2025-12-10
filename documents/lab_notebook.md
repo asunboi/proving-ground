@@ -1,3 +1,167 @@
+# Dec 4
+
+made a __main__.py
+
+read in multiple pkl_res files and add them all to the heatmap. If there is the same cell type and perturbation, instead take the average for that value. 
+
+i want my Y axis to still be cell types, and basically plot a grid of box plots where the Y axis is always 0-1 pearson, 1 celltype x pert for each plot in the grid, but the whole figure should be 1 thing.
+
+created seeds 1 to 10
+working on run.py to submit all 10
+
+how to make it so that for the below code the sbatch file is always submitted with the working directory as the one it is located in 
+
+# Dec 3
+
+make 
+output:
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+be dependent on splitter.seed, so that it becomes
+
+main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}/seed_${splitter.seed}
+
+however, splitter is intialized after self. 
+
+defaults:
+  - _self_
+  - data: boli_scramble
+  - hydra: splitter
+  - splitter: subclass
+  # experiment configs allow for version control of specific hyperparameters
+  # e.g. best hyperparameters for given model and datamodule
+
+  - experiment: null
+
+the reason i am doing all this is because I want my directories to be created with seed_{x} in the name, for example 
+
+output:
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}/seed_${splitter.seed}
+
+run:
+  dir: ${output.main_dir}
+sweep:
+  dir: ${output.main_dir}
+
+this pattern doesn't work with multiple splitter seeds though, which is why I have to multirun. I would much rather be able to pass in 1 seed, or a range, or a list to my splitter and have the hydra log be inside each one depending on which seed it is. 
+
+if cfg.splitter.seed is a list or a range, run the below for each value in that list or range
+
+splitter.split_covariates(
+            seed=cfg.splitter.seed,
+            print_split=True,
+            max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+            max_heldout_covariates=cfg.splitter.max_heldout_covariates,
+        )
+        
+
+# Dec 2
+
+Visualized the shuffle assign predictions against original (non-shuffle) logfc. Had lab meeting and update.
+Xin wants me to try and "break" it more, seeing which conditions cause the model to stop working.
+
+I'm experiencing a fat wave of fatigue or something where I don't really wantt to work, could be due to lack of adderall but also just lack of sleep. I think that if I just rest more and play less games, especially during working hours, I can overcome it.
+
+I'm also experiencing some resistance with starting the later phases of the project, but also this is mainly due to not having a concrete next step / list of things to do. I think I should just take it easy and list out all the todo items, even starting work on the smaller ones first just so I can get the ball rolling again.
+
+
+# Dec 1
+
+Working on shuffle assign.
+
+# Nov 25
+
+working primarily on the shuffled assign
+changed raw_data directory into a data directory
+
+data/
+  dataset_name/
+    raw/
+    processed/
+
+also should work on changing the storm configs into more concrete / seperable things, eg reworking data into a seperate subdir.
+
+
+
+# Nov 24
+
+joint meeting at 2, so focusing on showing utility of the current pipeline. The first step is to emulate Seoyeon's experiments, which means fixing / setting up the splitter.
+
+left off working on plugins but not urgent compared to the manual splitter.
+
+finished adding apply_toml_manual_split to splitter.py, still have work to do on refactoring the control splits into it though. 
+
+Since that's added though, the control refactoring can come later. The more important things are cloud > plugins > output visualizations > other refactors
+
+# Nov 21
+
+debugging
+```
+  File "/gpfs/home/asun/miniforge3/envs/perturbench/lib/python3.11/site-packages/sklearn/model_selection/_split.py", line 2499, in _validate_shuffle_split
+    raise ValueError(
+ValueError: With n_samples=0, test_size=0.5 and train_size=None, the resulting train set will be empty. Adjust any of the aforementioned parameters.
+```
+because i'm trying to replace
+```
+# splitter.split_covariates(
+    #     seed=cfg.splitter.seed,
+    #     print_split=True,
+    #     max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+    #     max_heldout_covariates=cfg.splitter.max_heldout_covariates,
+    # )
+
+    # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
+    # BUG: this probably still wouldn't work because the controls get assigned by split_controls. 
+    print(covariates_holdout)
+
+    splitter.split_covariates_manual(
+        seed=cfg.splitter.seed,
+        covariates_holdout=covariates_holdout,
+        print_split=True,
+        max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
+    )
+```
+the issue is in datasplitter.py from perturbench, so thinking about just completely rehauling it wihtout having to think about their splitter.
+when I run
+```
+for covs, df in adata.obs.groupby(["predicted.subclass"]):
+```
+i'm getting
+('Astro',)
+and no output for heldout perts.
+when i run
+```
+for covs, df in adata.obs.groupby("predicted.subclass"):
+```
+it works as intended.
+the current implementation is 
+```
+for covs, df in self.obs_dataframe.groupby(self.covariate_keys[0]):
+	covs = frozenset(covs)
+```
+and there's no output after the for loop, eg. heldout_perturbation_covariates = [].
+
+currently just went back to default behavior with the split_covariates, but will probably adapt the code into storm as a splitter module seperate from perturbench.
+
+https://github.com/ArcInstitute/state/blob/65953fa23e19859d9f34c607ffea257c7c2ba144/src/state/_cli/_tx/_predict.py#L392
+
+working on refactoring save.py into plugin specific items, but this also extends beyond saving.
+currently the things that are specific to the models
+
+**State**
+in save
+- toml directory and files
+- runtime script
+
+**perturbench**
+in save
+- yaml directory and files
+- splits directory
+in run
+- runtime script
+
+left off working on the plugin refactoring, refer to routine memory tips in chatgpt to continue. 
+
 
 # Nov 20
 

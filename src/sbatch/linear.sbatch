@@ -5,4 +5,4 @@
 #SBATCH --partition=alphafold,gpu
 #SBATCH --gpus=1
 
-train experiment=test/test_qual_high_amt_high model=linear_additive
+train -m experiment=boli_scramble/boli_scramble_full model=linear_additive,latent_additive

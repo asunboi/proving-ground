@@ -5,4 +5,4 @@
 #SBATCH --partition=alphafold,gpu
 #SBATCH --gpus=1
 
-train experiment=test/test_qual_high_amt_high model=latent_additive
+train experiment=test_qual_high_amt_high

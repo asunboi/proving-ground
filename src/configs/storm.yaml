@@ -3,14 +3,13 @@
 # specify here default configuration
 # order of defaults determines the order in which configs override each other
 defaults:
-  - _self_
-  - data: boli_scramble
+  - data: boli
   - hydra: splitter
   - splitter: subclass
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule
-
   - experiment: null
+  - _self_
 
 # # Provide checkpoint path to pretrained model
 # ckpt_path: /gpfs/home/asun/jin_lab/perturbench/1_train/logs/train/runs/2025-09-26_11-01-16_boli_linear_baseline/checkpoints/epoch=9-step=3690.ckpt
@@ -25,17 +24,16 @@ perturbations:
   control_value: NT_0
 
 output:
-  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
-  #/gpfs/home/asun/jin_lab/perturbench/0_datasets/
+  main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}
 
-models: ["perturbench", "state"]
+models: ["state"]
 
 scale:
   enabled: False
   base_fractions: [1.0, 0.6, 0.2]
   
 note: |
-  Testing performance with random split and no manual controls. 
+  Testing state only file update, trying to only update state sbatch scripts to fit the new override.
 
 # # Path to prediction dataframe (generate with notebooks/demos/generate_prediction_dataframe)
 # prediction_dataframe_path: /gpfs/home/asun/jin_lab/perturbench/0_datasets/linear/prediction_dataframe.csv

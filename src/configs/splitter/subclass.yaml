@@ -1,4 +1,4 @@
-manual: True
+manual: False
 toml_path: /gpfs/home/asun/jin_lab/state/debug/STATE/state/test_boli/Boli_Perturb_CTX_edit_L6_hvg.toml
 manual_control: True
 seed: 1

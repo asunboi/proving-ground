@@ -36,7 +36,7 @@ debug/
 
 # Data repositories
 **/output/
-**/raw_data/
+**/data/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
