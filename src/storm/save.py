@@ -9,7 +9,7 @@ from plugins.loader import load_plugins
 
 log = logging.getLogger(__name__)
 
-def plot_counts(df, outfile, perturbation_key, covariate_key, seed):
+def plot_counts(df, outfile, perturbation_key, covariate_key, control_value, seed):
     """
     Make heatmaps of counts per (cell_line, gene) × seed from a DataFrame.
 
@@ -69,6 +69,13 @@ def plot_counts(df, outfile, perturbation_key, covariate_key, seed):
             .drop(columns=covariate_key)
             .fillna(0)
         )
+
+        # Reorder rows so that control (NT_0) is always at the bottom
+        idx = list(subset.index)
+        if control_value in idx:
+            idx = [x for x in idx if x != control_value] + [control_value]
+            subset = subset.loc[idx]
+
         data = subset.values
 
         im = ax.imshow(data, aspect="auto", cmap="viridis")
@@ -153,7 +160,7 @@ def save_datasets(datasets, adata, dataset_name, perturbation_key, covariate_key
 
             # create figures of seeded splits
             fig_path = layout.fig_dir / f"{dataset_name}_{split_name}_seed{seed}.png"
-            plot_counts(df, str(fig_path), perturbation_key, covariate_key, seed)
+            plot_counts(df, str(fig_path), perturbation_key, covariate_key, control_value, seed)
 
             # per-model artifacts
             for plugin in plugins:

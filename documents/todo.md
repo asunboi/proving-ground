@@ -6,9 +6,9 @@ this is actually not that aesthetic, and more of a mandatory thing.
 resolution detailed in documents/issues/logging.md
 resolved in commit 5e75ddf
 
-- [ ] generate scripts after storm output
+- [X] generate scripts after storm output
   - [X] perturbench
-  - [ ] state
+  - [X] state
 
 - [ ] automatically generate evaluation metrics
 
