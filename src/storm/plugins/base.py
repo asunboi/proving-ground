@@ -16,3 +16,11 @@ class ModelPlugin(ABC):
         perturbation_key: str, covariate_key: str, control_value: str, seed: int, layout
     ) -> None:
         ...
+
+    @abstractmethod
+    def visualize_heatmap() -> None:
+        pass
+
+    @abstractmethod
+    def visualize_scatterplots() -> None:
+        pass

@@ -1,3 +1,75 @@
+# Dec 10
+
+I have code that visualizes a heatmap. the majority of the code is conserved between plugins, with the only difference being how df_pred and df_ref are different for different plugins. 
+
+for example, for STATE, 
+```
+# Seeds to average over
+    seeds = list(range(1, 11))
+
+    # Directories, each containing adata_pred.h5ad and adata_real.h5ad
+    adata_dirs = [
+        f"/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli/seed_{seed}/configs/state/boli_seed{seed}"
+        for seed in seeds
+    ]
+
+for run_dir in adata_dirs:
+        adata_pred_path = os.path.join(run_dir, "eval_final.ckpt/adata_pred.h5ad")
+        adata_real_path = os.path.join(run_dir, "eval_final.ckpt/adata_real.h5ad")
+
+        if not (os.path.exists(adata_pred_path) and os.path.exists(adata_real_path)):
+            print(f"Skipping {run_dir}: missing adata_pred.h5ad or adata_real.h5ad")
+            continue
+
+        print(f"Processing {run_dir}")
+
+        adata_pred = sc.read_h5ad(adata_pred_path)
+        adata_real = sc.read_h5ad(adata_real_path)
+
+        logfc_all_real = calculate_logfc_all(adata_real)
+        logfc_all_pred = calculate_logfc_all(adata_pred)
+
+        df_pred = logfc_all_pred  # rows: cell_pert, cols: genes
+        df_ref  = logfc_all_real
+```
+
+whereas for perturbench:
+```
+pkl_files = []
+for i in range(1,11):
+    pkl_files.append(f"/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli/seed_{i}/configs/perturbench/latent_additive/evaluation/eval.pkl")
+
+for pkl_res in pkl_files:
+    with open(pkl_res, "rb") as f:
+        eval_data = pickle.load(f)
+    
+    df_pred = eval_data.aggr["logfc"][model_name].to_df()  # rows: cell_pert, cols: genes
+    df_ref  = eval_data.aggr["logfc"]["ref"].to_df()
+```
+
+how can I best code this so that the rest of the code is conserved between plugins, but the loading is specific to each plugin? if this is not possible, just let me know without making it more convoluted.
+
+my plugin class theoretically looks like this
+```
+class ModelPlugin(ABC):
+    key: str  # short name, e.g. "state", "perturbench"
+
+    def prepare_dirs(self, layout) -> None:
+        pass  # optional
+
+    @abstractmethod
+    def emit_for_split(
+        self, df: pd.DataFrame, dataset_name: str, split_name: str,
+        h5ad_path: Path,
+        perturbation_key: str, covariate_key: str, control_value: str, seed: int, layout
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def visualize_heatmap() -> None:
+        pass
+``` 
+
 # Dec 4
 
 made a __main__.py

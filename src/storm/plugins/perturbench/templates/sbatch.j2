@@ -6,3 +6,5 @@
 #SBATCH --gpus=1
 
 train -m experiment={{ dataset_name }}/{{ yaml_filename }} model=linear_additive,latent_additive
+
+# predict -m experiment={{ dataset_name }}/{{ yaml_filename }} model=linear_additive,latent_additive

@@ -27,7 +27,7 @@ each seeded split will have its own figures, configs, etc. this is all mostly de
 - [ ] turn storm into a submodule / have its own github repo after completion
 
 ## storm: aesthetic
-- [ ] (aes) when generating split figures, make it so that whatever is set as control key is on the bottom
+- [X] (aes) when generating split figures, make it so that whatever is set as control key is on the bottom
 
 ## storm: refactor
 - [X] refactor splitter and storm into individual packages
