@@ -2,7 +2,6 @@
 
 defaults:
   - override /model: {{ model_name }}
-  - override /callbacks: default
   - override /data: boli_ctx
 
 data:
@@ -19,7 +18,7 @@ data:
 # output directory, generated dynamically on each run
 hydra:
   run:
-    dir: .
+    dir: ./${hydra:runtime.choices.model}
   sweep:
     dir: .
     subdir: ${hydra:runtime.choices.model}

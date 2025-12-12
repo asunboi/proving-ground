@@ -1,3 +1,13 @@
+# Dec 11
+
+i want to have a __main__.py for my package that takes in a hydra configuration and sends it to the relevant subpackages. 
+
+eg. if i run storm run or storm init or storm visualize, the base configs + any overrides will still be the same. what would this script look like?
+
+I think that init should call projectlayout and create it for the specific confiiguration. 
+
+i want to automatically run prediction after training, but I need to get the path to the model checkpoint, which is generated in ${hydra:runtime.choices.model}/checkpoints/epoch=7-step=2584.ckpt. the epoch and step are always random though, but there is only 1 file in the checkpoints folder. I need to get the filename set it as a variable. 
+
 # Dec 10
 
 I have code that visualizes a heatmap. the majority of the code is conserved between plugins, with the only difference being how df_pred and df_ref are different for different plugins. 

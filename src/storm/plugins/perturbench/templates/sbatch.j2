@@ -5,6 +5,33 @@
 #SBATCH --partition=alphafold,gpu
 #SBATCH --gpus=1
 
-train -m experiment={{ dataset_name }}/{{ yaml_filename }} model=linear_additive,latent_additive
+#train -m experiment={{ dataset_name }}/{{ yaml_filename }} \
+#    model=linear_additive,latent_additive 
 
-# predict -m experiment={{ dataset_name }}/{{ yaml_filename }} model=linear_additive,latent_additive
+## find the best linear checkpoint from training
+LIN_CKPT="$(find "{{ out_dir }}/linear_additive/checkpoints" -maxdepth 1 -type f -name "*.ckpt" -print -quit)"
+if [ -z "$LIN_CKPT" ]; then
+  echo "No linear checkpoint found" >&2
+  exit 1
+fi
+
+## find the best latent checkpoint from training
+LAT_CKPT="$(find "{{ out_dir }}/latent_additive/checkpoints" -maxdepth 1 -type f -name "*.ckpt" -print -quit)"
+if [ -z "$LAT_CKPT" ]; then
+  echo "No latent checkpoint found" >&2
+  exit 1
+fi
+
+# predict for linear model
+predict -m experiment={{ dataset_name }}/{{ yaml_filename }} \
+    model=linear_additive \
+    ckpt_path=\"${LIN_CKPT}\" \
+    prediction_dataframe_path={{ prediction_path }}
+
+# predict for latent model
+predict -m experiment={{ dataset_name }}/{{ yaml_filename }} \
+    model=latent_additive \
+    ckpt_path=\"${LAT_CKPT}\" \
+    prediction_dataframe_path={{ prediction_path }}
+
+

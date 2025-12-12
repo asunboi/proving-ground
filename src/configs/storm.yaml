@@ -26,7 +26,7 @@ perturbations:
 output:
   main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}
 
-models: ["state"]
+models: ["perturbench"]
 
 scale:
   enabled: False

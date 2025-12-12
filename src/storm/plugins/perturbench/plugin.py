@@ -31,45 +31,6 @@ def _env():
 def generate_yaml_config(template_name, **ctx) -> str:
     return _env().get_template(template_name).render(**ctx)
 
-def generate_prediction_dataframe(df, split_col='transfer_split_seed1', 
-                              condition_col='condition', 
-                              cell_type_col='cell_class',
-                              output_csv='test_combinations.csv'):
-    """
-    Extract unique condition and cell_type combinations from test split.
-    
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Input dataframe with split assignments
-    split_col : str
-        Column name for train/val/test split (default: 'transfer_split_seed1')
-    condition_col : str
-        Column name for perturbation condition (default: 'condition')
-    cell_type_col : str
-        Column name for cell type (default: 'cell_class')
-    output_csv : str
-        Output CSV filename (default: 'test_combinations.csv')
-    
-    Returns:
-    --------
-    test_combos : pd.DataFrame
-        DataFrame with unique condition-cell_type combinations from test set
-    """
-    # Filter to test set only
-    test_df = df[df[split_col] == 'test']
-    
-    # Get unique combinations of condition and cell_type
-    test_combos = test_df[[condition_col, cell_type_col]].drop_duplicates()
-    
-    # Save to CSV
-    test_combos.to_csv(output_csv, index=False)
-    
-    log.info(f"Extracted {len(test_combos)} unique test combinations")
-    log.info(f"Saved to: {output_csv}")
-    
-    return test_combos
-
 class Plugin(ModelPlugin):
     key = "perturbench"
 
@@ -91,7 +52,7 @@ class Plugin(ModelPlugin):
         out_dir = layout.config_dir(seed_dir, f"perturbench")
         
         #TODO: fix csv path
-        csv_path = out_dir / f"{dataset_name}_{split_name}_split.csv"
+        csv_path = out_dir / f"{dataset_name}_{split_name}_seed{seed}.csv"
         df[[f"transfer_split_seed{seed}"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
 
         # write yaml files and symlink them
@@ -113,12 +74,20 @@ class Plugin(ModelPlugin):
             link_path.unlink()
         os.symlink(yaml_path, link_path)
 
+        # write prediction dataframe
+        test_df = df[df[ f"transfer_split_seed{seed}"] == 'test']
+        test_combos = test_df[[perturbation_key, covariate_key]].drop_duplicates()
+        prediction_path = out_dir / f"prediction_dataframe.csv"
+        test_combos.to_csv(prediction_path, index=False)
+
         # write sbatch files
         sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
         sbatch = generate_yaml_config(
             "sbatch.j2",
             dataset_name=dataset_name,
             yaml_filename=f"{dataset_name}_{split_name}_seed{seed}",
+            prediction_path=prediction_path,
+            out_dir=out_dir
         )
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)

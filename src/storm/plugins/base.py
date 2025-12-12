@@ -17,9 +17,9 @@ class ModelPlugin(ABC):
     ) -> None:
         ...
 
-    @abstractmethod
-    def visualize_heatmap() -> None:
-        pass
+    # @abstractmethod
+    # def visualize_heatmap() -> None:
+    #     pass
 
     @abstractmethod
     def visualize_scatterplots() -> None:
