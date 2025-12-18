@@ -45,29 +45,37 @@ class Plugin(ModelPlugin):
         #layout.config_dir("perturbench")
         (self.experiment_root / layout.dataset_name).mkdir(parents=True, exist_ok=True)
 
-    def emit_for_split(self, df, dataset_name, split_name, h5ad_path,
-                       perturbation_key, covariate_key, control_value, seed, layout):
+    def emit_for_split(self,
+                       df,
+                       split_name,
+                       h5ad_path,
+                       seed,
+                       layout,
+                       cfg):
 
         seed_dir = layout.seed_dir(seed)
         out_dir = layout.config_dir(seed_dir, f"perturbench")
         
         #TODO: fix csv path
-        csv_path = out_dir / f"{dataset_name}_{split_name}_seed{seed}.csv"
+        csv_path = out_dir / f"{cfg.data.name}_{split_name}_seed{seed}.csv"
         df[[f"transfer_split_seed{seed}"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
+
+        #HACK: specifics to perturbench
+        covariates = [cfg.data.covariate_key, cfg.data.batch_key]
 
         # write yaml files and symlink them
         model_name = "linear_additive"
-        yaml_filename = f"{dataset_name}_{split_name}_seed{seed}.yaml"
+        yaml_filename = f"{cfg.data.name}_{split_name}_seed{seed}.yaml"
         text = generate_yaml_config(
             "boli_ctx.yaml.j2",
-            model_name=model_name, dataset_name=dataset_name, split_name=split_name,
-            h5ad_path=str(h5ad_path), perturbation_key=perturbation_key,
-            covariate_key=covariate_key, control_value=control_value, csv_path=str(csv_path)
+            model_name=model_name, dataset_name=cfg.data.name, split_name=split_name,
+            h5ad_path=str(h5ad_path), perturbation_key=cfg.data.perturbation_key,
+            covariate_key=covariates, control_value=cfg.data.control_value, csv_path=str(csv_path)
         )
         yaml_path = out_dir / yaml_filename
         yaml_path.write_text(text)
 
-        link_dir = self.experiment_root / dataset_name
+        link_dir = self.experiment_root / cfg.data.name
         link_dir.mkdir(parents=True, exist_ok=True)
         link_path = link_dir / yaml_filename
         if link_path.exists() or link_path.is_symlink():
@@ -76,16 +84,18 @@ class Plugin(ModelPlugin):
 
         # write prediction dataframe
         test_df = df[df[ f"transfer_split_seed{seed}"] == 'test']
-        test_combos = test_df[[perturbation_key, covariate_key]].drop_duplicates()
+        # Fix: create a list of all columns to select, then use it
+        columns_to_select = [cfg.data.perturbation_key] + covariates
+        test_combos = test_df[columns_to_select].drop_duplicates()
         prediction_path = out_dir / f"prediction_dataframe.csv"
         test_combos.to_csv(prediction_path, index=False)
 
         # write sbatch files
-        sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
+        sbatch_filename = f"{cfg.data.name}_{split_name}_seed{seed}.sbatch"
         sbatch = generate_yaml_config(
             "sbatch.j2",
-            dataset_name=dataset_name,
-            yaml_filename=f"{dataset_name}_{split_name}_seed{seed}",
+            dataset_name=cfg.data.name,
+            yaml_filename=f"{cfg.data.name}_{split_name}_seed{seed}",
             prediction_path=prediction_path,
             out_dir=out_dir
         )

@@ -215,7 +215,10 @@ def main(cfg: DictConfig):
 
     log.info(OmegaConf.to_yaml(cfg))
     
-    covariate_keys = OmegaConf.to_container(cfg.data.covariate_keys, resolve=True)
+    #HACK: specifics to perturbench
+    covariate_keys = [cfg.data.covariate_key, cfg.data.batch_key]
+
+    log.debug(covariate_keys)
 
     # REFACTOR: don't declare a new variable / bloat just to add '/'
     main_dir = cfg.output.main_dir + '/'
@@ -292,34 +295,17 @@ def main(cfg: DictConfig):
         splitter=splitter,
         perturbations_to_remove=perturbations_to_remove,
         perturbation_key=cfg.perturbations.key,
-        covariate_key=covariate_keys[0],
+        covariate_key=covariate_keys,
         control_value=cfg.perturbations.control_value,
         manual_control=cfg.splitter.manual_control,
         base_fractions=cfg.scale.base_fractions,
         enable=cfg.scale.enabled,
     )
 
-    # # save all datasets
-    # save_datasets(
-    #     datasets=datasets,
-    #     adata=adata,
-    #     dataset_name=cfg.dataset.name,
-    #     perturbation_key=cfg.perturbations.key,
-    #     covariate_key=covariate_keys[0],
-    #     control_value=cfg.perturbations.control_value,
-    #     main_dir=main_dir,
-    # )
-
     save_datasets(
         datasets=datasets,
         adata=adata,
-        dataset_name=cfg.data.name,
-        perturbation_key=cfg.perturbations.key,
-        covariate_key=covariate_keys[0],
-        control_value=cfg.perturbations.control_value,
-        main_dir=main_dir,
-        models=cfg.models,
-        seeds=seeds,
+        cfg=cfg,
     )
 
     log.info("All datasets created and saved successfully!")
