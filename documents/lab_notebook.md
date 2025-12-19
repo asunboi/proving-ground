@@ -1,3 +1,110 @@
+# Dec 16
+
+i continue to change what is coming in from the hydra configuration that the main script references, and the arguments that my functions take in keep growing. I don't want to manually add them everytime, is it possible to do something like **kwargs to read in arguments by name / cfg and reference that? should i just pass my cfg from main to these other modules?
+
+for example, my main
+
+@hydra.main(config_path="../configs", config_name="storm", version_base="1.3")
+def main(cfg: DictConfig):
+
+    log.info(OmegaConf.to_yaml(cfg))
+
+which imports the below
+
+from save import save_datasets
+
+for _assign_split():
+Perfect! The key changes are:
+
+1. **Separates heldout items into two groups**:
+   - `heldout_to_keep`: items where `covariate_counts[covariates] > 1` (will be split into val/test)
+   - `heldout_to_train`: items where `covariate_counts[covariates] <= 1` (will go back to train)
+
+2. **Adds singleton heldout items back to train**: The `heldout_to_train` items are appended to `train_perturbation_covariates`
+
+3. **Uses only the filtered list** for the train_test_split: `heldout_to_keep` instead of the full `heldout_perturbation_covariates`
+
+4. **Adds debug logging** to show how many items were kept vs moved back to train
+
+Now, any perturbation-covariate combinations that are the only ones held out for a particular covariate will be moved back to the training set, ensuring better stratification for val/test splits.
+
+
+# Dec 12
+
+Traceback (most recent call last):
+  File "/gpfs/group/jin/asun/perturbench/bin/../src/storm/storm.py", line 269, in main
+    splitter.split_covariates(
+  File "/gpfs/group/jin/asun/perturbench/src/storm/splitter.py", line 519, in split_covariates
+    self._assign_split(
+  File "/gpfs/group/jin/asun/perturbench/src/storm/splitter.py", line 185, in _assign_split
+    train_test_split(
+  File "/gpfs/home/asun/miniforge3/envs/perturbench/lib/python3.11/site-packages/sklearn/utils/_param_validation.py", line 218, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/gpfs/home/asun/miniforge3/envs/perturbench/lib/python3.11/site-packages/sklearn/model_selection/_split.py", line 2919, in train_test_split
+    n_train, n_test = _validate_shuffle_split(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/gpfs/home/asun/miniforge3/envs/perturbench/lib/python3.11/site-packages/sklearn/model_selection/_split.py", line 2499, in _validate_shuffle_split
+    raise ValueError(
+ValueError: With n_samples=0, test_size=0.5 and train_size=None, the resulting train set will be empty. Adjust any of the aforementioned parameters.
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+
+for some reason, at the end of this, heldout_perturbation_covariates is empty. add log.debug in all the suitable places to figure out what the inputs are and what the intermediates are, and what might be wrong with the output. Don't change any of the actual logic of the code, only add loggers.
+
+heldout_perturbation_covariates = []
+        for i, items in enumerate(perturbation_covariates_dict.items()):
+            perturbation, covariate_list = items
+            num_covariates = len(covariate_list)
+            sampled_covariates = []
+
+            log.debug()
+            if num_covariates > min_train_covariates:
+                covariate_pool = [
+                    covariates
+                    for covariates in covariate_list
+                    if num_heldout_dict[covariates] < max_heldout_dict[covariates]
+                ]  ## Check if the maximum number of perturbations have been held out for this set of covariates
+
+                if len(covariate_pool) > 0:
+                    random.seed(seed_list[i])
+                    num_sample_range = (
+                        1,
+                        np.max(
+                            [
+                                len(covariate_pool)
+                                - num_total_covs
+                                + max_heldout_covariates,
+                                1,
+                            ]
+                        ),
+                    )
+                    num_sample = random.randint(
+                        num_sample_range[0], num_sample_range[1]
+                    )
+                    sampled_covariates = random.sample(
+                        covariate_pool, num_sample
+                    )  ## Sample a random subset of covariates to hold out
+
+                    for covariates in sampled_covariates:
+                        num_heldout_dict[covariates] += 1
+
+                    heldout_perturbation_covariates.extend(
+                        [
+                            (perturbation, covariates)
+                            for covariates in sampled_covariates
+                        ]
+                    )
+
+            train_perturbation_covariates.extend(
+                [
+                    (perturbation, covariates)
+                    for covariates in covariate_list
+                    if covariates not in sampled_covariates
+                ]
+            )
+
+
 # Dec 11
 
 i want to have a __main__.py for my package that takes in a hydra configuration and sends it to the relevant subpackages. 
@@ -7,6 +114,7 @@ eg. if i run storm run or storm init or storm visualize, the base configs + any 
 I think that init should call projectlayout and create it for the specific confiiguration. 
 
 i want to automatically run prediction after training, but I need to get the path to the model checkpoint, which is generated in ${hydra:runtime.choices.model}/checkpoints/epoch=7-step=2584.ckpt. the epoch and step are always random though, but there is only 1 file in the checkpoints folder. I need to get the filename set it as a variable. 
+
 
 # Dec 10
 

@@ -6,7 +6,7 @@ defaults:
 
 data:
   datapath: {{ h5ad_path }}
-  covariate_keys: ["{{ covariate_key }}"]
+  covariate_keys: {{ covariate_key | tojson }}
   perturbation_key: {{ perturbation_key }}
   perturbation_combination_delimiter: +
   perturbation_control_value: {{ control_value }}
