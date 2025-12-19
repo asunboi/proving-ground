@@ -2,4 +2,5 @@ name: boli
 adata_path: /gpfs/home/asun/jin_lab/perturbench/data/boli_perturb_ctx_edit_ntsubset_hvg/raw/adata.h5ad
 perturbation_key: Assign
 control_value: NT_0
-covariate_keys: ["predicted.subclass"]
+covariate_keys: "predicted.subclass"
+batch_keys: "Sample"
