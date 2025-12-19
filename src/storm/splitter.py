@@ -181,18 +181,32 @@ class PerturbationDataSplitter:
         covariate_counts = defaultdict(int)
         for _, covariates in heldout_perturbation_covariates:
             covariate_counts[covariates] += 1
-        heldout_perturbation_covariates = [
-            (perturbation, covariates)
-            for perturbation, covariates in heldout_perturbation_covariates
-            if covariate_counts[covariates] > 1
-        ]
-        log.debug(heldout_perturbation_covariates)
+        
+        # Separate heldout items into those that will remain heldout vs those that go back to train
+        heldout_to_keep = []
+        heldout_to_train = []
+        
+        for perturbation, covariates in heldout_perturbation_covariates:
+            if covariate_counts[covariates] > 1:
+                heldout_to_keep.append((perturbation, covariates))
+            else:
+                heldout_to_train.append((perturbation, covariates))
+        
+        # Add the singleton heldout items back to train
+        train_perturbation_covariates = list(train_perturbation_covariates) + heldout_to_train
+        
+        log.debug(
+            "Covariate filtering: %d heldout items kept, %d moved back to train",
+            len(heldout_to_keep),
+            len(heldout_to_train)
+        )
+        log.debug(heldout_to_keep)
    
         validation_perturbation_covariates, test_perturbation_covariates = (
             train_test_split(
-                heldout_perturbation_covariates,
+                heldout_to_keep,
                 stratify=[
-                    str(covariates) for _, covariates in heldout_perturbation_covariates
+                    str(covariates) for _, covariates in heldout_to_keep
                 ],
                 test_size=test_fraction,  ## Split test and test perturbations evenly
                 random_state=seed,
@@ -456,21 +470,6 @@ class PerturbationDataSplitter:
             "min_control_cells_per_covariate": min_control_cells_per_covariate,
         }
 
-        # # Identify valid covariates (those with sufficient control cells)
-        # control_mask = self.obs_dataframe[self.perturbation_key] == self.perturbation_control_value
-        # control_df = self.obs_dataframe[control_mask]
-        
-        # valid_covariates = set()
-        # for cov_keys, df in control_df.groupby(self.covariate_keys):
-        #     if len(df) > min_control_cells_per_covariate:
-        #         valid_covariates.add(frozenset(cov_keys))
-        
-        # log.debug(
-        #     "Valid covariates with >%d control cells: %d total",
-        #     min_control_cells_per_covariate,
-        #     len(valid_covariates)
-        # )
-
         # Identify valid covariates (those with sufficient control cells AND perturbed cells)
         control_mask = self.obs_dataframe[self.perturbation_key] == self.perturbation_control_value
         perturbed_mask = self.obs_dataframe[self.perturbation_key] != self.perturbation_control_value
@@ -495,7 +494,7 @@ class PerturbationDataSplitter:
         valid_covariates = set()
         for cov_keys, df in control_df.groupby(self.covariate_keys):
             # Check if this covariate has enough control cells
-            if len(df) > min_control_cells_per_covariate:
+            if len(df) >= min_control_cells_per_covariate:
                 # Handle both single covariate and multiple covariates
                 if isinstance(cov_keys, tuple):
                     cov_frozen = frozenset(cov_keys)
@@ -511,6 +510,9 @@ class PerturbationDataSplitter:
                         cov_keys,
                         len(df)
                     )
+        #TODO: else statement redirecting all non-valid covariates to training
+        #   else:
+                
                     
         max_heldout_dict = {}  ## Maximum number of perturbations that can be held out for each unique set of covariates
         for cov_keys, df in self.obs_dataframe.groupby(self.covariate_keys):
@@ -709,57 +711,15 @@ class PerturbationDataSplitter:
                             ),
                         ),
                     )
-                    log.debug(
-                        "[i=%d] perturbation=%r | num_sample_range=%r | components: pool=%d num_total_covs=%r max_heldout_covariates=%r",
-                        i,
-                        perturbation,
-                        num_sample_range,
-                        len(covariate_pool),
-                        num_total_covs,
-                        max_heldout_covariates,
-                    )
 
                     num_sample = random.randint(num_sample_range[0], num_sample_range[1])
-                    log.debug(
-                        "[i=%d] perturbation=%r | num_sample=%d",
-                        i,
-                        perturbation,
-                        num_sample,
-                    )
 
                     sampled_covariates = random.sample(
                         covariate_pool, num_sample
                     )  ## Sample a random subset of covariates to hold out
-                    log.debug(
-                        "[i=%d] perturbation=%r | sampled_covariates_size=%d | sampled_covariates=%r",
-                        i,
-                        perturbation,
-                        len(sampled_covariates),
-                        sampled_covariates,
-                    )
-
-                    if log.isEnabledFor(10):
-                        _before = {c: num_heldout_dict.get(c) for c in sampled_covariates}
-                        log.debug(
-                            "[i=%d] perturbation=%r | num_heldout_dict before increments (sampled only)=%r",
-                            i,
-                            perturbation,
-                            _before,
-                        )
 
                     for covariates in sampled_covariates:
                         num_heldout_dict[covariates] += 1
-
-                    if log.isEnabledFor(10):
-                        _after = {c: num_heldout_dict.get(c) for c in sampled_covariates}
-                        _caps = {c: max_heldout_dict.get(c) for c in sampled_covariates}
-                        log.debug(
-                            "[i=%d] perturbation=%r | num_heldout_dict after increments (sampled only)=%r | caps=%r",
-                            i,
-                            perturbation,
-                            _after,
-                            _caps,
-                        )
 
                     _prev_len = len(heldout_perturbation_covariates)
                     heldout_perturbation_covariates.extend(
@@ -768,27 +728,6 @@ class PerturbationDataSplitter:
                             for covariates in sampled_covariates
                         ]
                     )
-                    log.debug(
-                        "[i=%d] perturbation=%r | heldout_perturbation_covariates grew: %d -> %d",
-                        i,
-                        perturbation,
-                        _prev_len,
-                        len(heldout_perturbation_covariates),
-                    )
-                else:
-                    log.debug(
-                        "[i=%d] perturbation=%r | covariate_pool is EMPTY; nothing can be held out for this perturbation.",
-                        i,
-                        perturbation,
-                    )
-            else:
-                log.debug(
-                    "[i=%d] perturbation=%r | SKIP holding out: num_covariates=%d is not > min_train_covariates=%r",
-                    i,
-                    perturbation,
-                    num_covariates,
-                    min_train_covariates,
-                )
 
             _train_prev_len = len(train_perturbation_covariates)
             train_perturbation_covariates.extend(
