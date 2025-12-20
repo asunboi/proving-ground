@@ -65,20 +65,17 @@ def normalize_seeds(seed_cfg):
 def main(cfg: DictConfig):
 
     log.info(OmegaConf.to_yaml(cfg))
-    
-    #HACK: specifics to perturbench
-    covariate_keys = [cfg.data.covariate_key, cfg.data.batch_key]
-
-    log.debug(covariate_keys)
 
     # Load data
     adata = sc.read_h5ad(cfg.data.adata_path)
 
     # HACK: DROP ALL CT WITH LESS THAN X CELLS
-    mask = adata.obs[covariate_keys[0]].map(adata.obs[covariate_keys[0]].value_counts()) >= 50
+    # NOTE: why am I doing this? was it because of the splitter misbehaving?
+    counts = adata.obs.groupby(cfg.data.covariate_key, dropna=False)[cfg.data.covariate_key].transform("size")
+    mask = counts.ge(50)
     adata = adata[mask].copy()
 
-     # # REFACTOR: put this into scale.py
+    # # REFACTOR: put this into scale.py
     # # Determine perturbations to remove
     if cfg.scale.enabled:
         perturbations_to_remove = choose_perturbations_to_remove(
@@ -95,7 +92,8 @@ def main(cfg: DictConfig):
     splitter = PerturbationDataSplitter(
         df_initial,
         perturbation_key=cfg.perturbations.key,
-        covariate_keys=covariate_keys,
+        covariate_keys=cfg.data.covariate_key,
+        batch_key=cfg.data.batch_key,
         perturbation_control_value=cfg.perturbations.control_value,
     )
 
@@ -116,26 +114,13 @@ def main(cfg: DictConfig):
                 max_heldout_covariates=cfg.splitter.max_heldout_covariates,
             )
 
-    # # FIX: using perturbench's manual splitter with specified set of holdout covariates, testing to see if this works. 
-    # # BUG: different behavior than split covariates, currently doesn't output any splits and causes error due to empty holdout
-    # print(covariates_holdout)
-    # splitter.split_covariates_manual(
-    #     seed=cfg.splitter.seed,
-    #     covariates_holdout=covariates_holdout,
-    #     print_split=True,
-    #     max_heldout_fraction_per_covariate=cfg.splitter.max_heldout_fraction_per_covariate,
-    # )
-
-    # Create dataset variants
-    # datasets = create_dataset_variants(adata, splitter, perturbations_to_remove, cfg.perturbations.key, covariate_keys[0], cfg.perturbations.control_value, cfg.manual_control)
-
     # if cfg.scale.enabled = true, returns scaled dict. if not, returns {full: adata.obs}
     datasets = create_scaled_datasets(
         adata=adata,
         splitter=splitter,
         perturbations_to_remove=perturbations_to_remove,
         perturbation_key=cfg.perturbations.key,
-        covariate_key=covariate_keys,
+        covariate_key=cfg.data.covariate_key,
         control_value=cfg.perturbations.control_value,
         manual_control=cfg.splitter.manual_control,
         base_fractions=cfg.scale.base_fractions,
@@ -152,7 +137,7 @@ def main(cfg: DictConfig):
 
     # Save note as README.md
     if "note" in cfg and cfg.note:
-        readme_path = os.path.join(main_dir, "README.md")
+        readme_path = os.path.join(cfg.output.main_dir, "README.md")
         with open(readme_path, "w") as f:
             f.write(cfg.note.strip() + "\n")
         log.info(f"Note saved to {readme_path}")

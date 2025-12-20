@@ -61,7 +61,15 @@ class Plugin(ModelPlugin):
         df[[f"transfer_split_seed{seed}"]].to_csv(csv_path, index=True, index_label="cell_barcode", header=False)
 
         #HACK: specifics to perturbench
-        covariates = [cfg.data.covariate_key, cfg.data.batch_key]
+        if isinstance(cfg.data.covariate_key, str):
+            covariates = [cfg.data.covariate_key]
+        else:
+            covariates = cfg.data.covariate_key
+        
+        # adding batch key as covariate, for example Sample
+        if isinstance(cfg.data.batch_key, str):
+            covariates.append(cfg.data.batch_key)
+
 
         # write yaml files and symlink them
         model_name = "linear_additive"

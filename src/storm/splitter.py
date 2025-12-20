@@ -39,6 +39,7 @@ class PerturbationDataSplitter:
     perturbation_key: str
     perturbation_control_value: str
     covariate_keys: list[str] | str | None = None
+    batch_key: str | None = None
     perturbation_combination_delimiter: str = "+"
 
     @staticmethod
@@ -132,6 +133,7 @@ class PerturbationDataSplitter:
         perturbation_key: str,
         perturbation_control_value: str,
         covariate_keys: list[str] | str | None = None,
+        batch_key: str | None = None,
         perturbation_combination_delimiter: str = "+",
     ):
         """Initialize PerturbationDataSplitter object."""
@@ -149,6 +151,10 @@ class PerturbationDataSplitter:
             self.covariate_keys = [covariate_keys]
         else:
             self.covariate_keys = covariate_keys
+        
+        # adding batch key as covariate, for example Sample
+        if isinstance(batch_key, str):
+            self.covariate_keys.append(batch_key)
 
         self.perturbation_control_value = perturbation_control_value
         self.perturbation_combination_delimiter = perturbation_combination_delimiter
