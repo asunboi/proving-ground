@@ -30,155 +30,6 @@ def choose_perturbations_to_remove(adata, perturbation_key, perturb_cfg) -> list
         perturbations_to_remove = OmegaConf.to_container(perturb_cfg.remove, resolve=True)
     return perturbations_to_remove
 
-def check_coverage_adata(
-    adata: AnnData,
-    condition_col: str = "condition",
-    control_value: str = "ctrl",
-    covariate_col: str = None,
-    split_col: str = "transfer_split_seed1",
-) -> tuple[AnnData, list[str]]:
-    """
-    Apply manual control splitting and coverage checks directly on an AnnData object.
-
-    - Manually assign train/val/test for control cells based on `BioSamp`.
-    - Drop cell types (covariate levels) that have 0 training examples.
-    - For remaining cell types that have 0 val or 0 test, set all their splits to 'train'.
-    - Subset `adata` so X/obs/var all stay consistent.
-
-    Parameters
-    ----------
-    adata : AnnData
-        AnnData with .obs columns: 'BioSamp', condition_col, covariate_col, split_col.
-    condition_col : str
-        Name of the condition column (default: 'condition').
-    control_value : str
-        Value indicating control cells (default: 'ctrl').
-    covariate_col : str
-        Column name for cell types / covariates (e.g. 'predicted.subclass').
-    split_col : str
-        Column that stores split assignment (default: 'transfer_split_seed1').
-
-    Returns
-    -------
-    AnnData
-        New AnnData with updated obs and (possibly) fewer cells.
-    """
-    # Work on a copy so we don't surprise-callers by mutating in place
-    adata = adata.copy()
-    obs = adata.obs
-
-    if covariate_col is None:
-        log.info("check_coverage_adata: covariate_col is None, skipping coverage checks.")
-        return adata
-    if covariate_col not in obs.columns:
-        raise KeyError(f"check_coverage_adata: covariate_col '{covariate_col}' not in adata.obs")
-
-    # ----------------- manual split for controls -----------------
-    control_mask = obs[condition_col] == control_value
-
-    # Train: Batch 1 Sample 1 and 2 (controls only)
-    train_mask = control_mask & obs["BioSamp"].str.contains(
-        "batch1_samp[12]", case=False, regex=True, na=False
-    )
-    obs.loc[train_mask, split_col] = "train"
-
-    # Val: Batch 2 mouse 1 and 2 (controls only)
-    val_mask = control_mask & obs["BioSamp"].str.contains(
-        "batch2_mouse[12]", case=False, regex=True, na=False
-    )
-    obs.loc[val_mask, split_col] = "val"
-
-    # Test: Batch 2 mouse 3 (controls only)
-    test_mask = control_mask & obs["BioSamp"].str.contains(
-        "batch2_mouse3", case=False, regex=True, na=False
-    )
-    obs.loc[test_mask, split_col] = "test"
-
-    # ----------------- covariate coverage checks -----------------
-    split_counts = (
-        obs.groupby(covariate_col, observed=False)[split_col]
-        .value_counts()
-        .unstack(fill_value=0)
-    )
-
-    # Ensure train/val/test columns exist even if zero everywhere
-    for split_name in ("train", "val", "test"):
-        if split_name not in split_counts.columns:
-            split_counts[split_name] = 0
-
-    zero_train_initial = split_counts[split_counts["train"] == 0].index.tolist()
-    zero_val_initial = split_counts[split_counts["val"] == 0].index.tolist()
-    zero_test_initial = split_counts[split_counts["test"] == 0].index.tolist()
-
-    # Print summary before modifications
-    if zero_train_initial:
-        log.info("Cell types with 0 training examples (before removal):")
-        for ct in zero_train_initial:
-            log.info(f"  - {ct}")
-    else:
-        log.info("No cell types with 0 training examples.")
-
-    log.info(f"Number of cell types with 0 training examples: {len(zero_train_initial)}")
-    log.info(f"Number of cell types with 0 validation examples: {len(zero_val_initial)}")
-    log.info(f"Number of cell types with 0 test examples: {len(zero_test_initial)}")
-
-    # 1) Drop covariates with 0 training examples (subset adata!)
-    if zero_train_initial:
-        log.info("Dropping cell types with 0 training examples from AnnData:")
-        drop_mask = obs[covariate_col].isin(zero_train_initial)
-        for ct in zero_train_initial:
-            log.info(f"  - dropping {ct}")
-        keep_mask = ~drop_mask.to_numpy()
-        adata = adata[keep_mask].copy()
-        obs = adata.obs  # refresh view after subsetting
-
-    # Remove unused categories if categorical
-    if pd.api.types.is_categorical_dtype(obs[covariate_col]):
-        adata.obs[covariate_col] = obs[covariate_col].cat.remove_unused_categories()
-        obs = adata.obs
-
-    # 2) Recompute counts after dropping those, then fix val/test coverage
-    if adata.n_obs == 0:
-        log.info("AnnData has 0 cells after dropping no-train cell types.")
-        return adata
-
-    split_counts2 = (
-        obs.groupby(covariate_col, observed=False)[split_col]
-        .value_counts()
-        .unstack(fill_value=0)
-    )
-    for split_name in ("train", "val", "test"):
-        if split_name not in split_counts2.columns:
-            split_counts2[split_name] = 0
-
-    zero_val_after_drop = split_counts2[split_counts2["val"] == 0].index.tolist()
-    zero_test_after_drop = split_counts2[split_counts2["test"] == 0].index.tolist()
-
-    covariates_to_train_only = sorted(set(zero_val_after_drop) | set(zero_test_after_drop))
-
-    # REFACTOR: put this into the splitter
-    # All covariates still present after previous filtering
-    remaining_covariates = sorted(obs[covariate_col].unique())
-
-    # Those that are NOT in covariates_to_train_only
-    covariates_holdout = sorted(
-        set(remaining_covariates) - set(covariates_to_train_only)
-    )
-
-    if covariates_to_train_only:
-        log.info(
-            "Cell types with 0 validation or 0 test examples after dropping no-train types; "
-            "setting all of their splits to 'train':"
-        )
-        mask_train_only = obs[covariate_col].isin(covariates_to_train_only)
-        for ct in covariates_to_train_only:
-            log.info(f"  - {ct}")
-        adata.obs.loc[mask_train_only, split_col] = "train"
-    else:
-        log.info("All remaining cell types have at least one example in val and test (or both).")
-
-    return adata, covariates_holdout
-
 def normalize_seeds(seed_cfg):
     """
     Turn cfg.splitter.seed into an iterable of ints.
@@ -220,23 +71,12 @@ def main(cfg: DictConfig):
 
     log.debug(covariate_keys)
 
-    # REFACTOR: don't declare a new variable / bloat just to add '/'
-    main_dir = cfg.output.main_dir + '/'
-
     # Load data
     adata = sc.read_h5ad(cfg.data.adata_path)
 
     # HACK: DROP ALL CT WITH LESS THAN X CELLS
     mask = adata.obs[covariate_keys[0]].map(adata.obs[covariate_keys[0]].value_counts()) >= 50
     adata = adata[mask].copy()
-
-    # REFACTOR: shouldn't have to get holdout covariates like this, integrate into splitter.
-    # BUG: this probably still wouldn't work because the below function that uses covariates_holdout doesn't fix the control issue.
-    # filter all cell types that don't have training, val, test controls. 
-    adata, covariates_holdout = check_coverage_adata(adata, 
-                                 condition_col=cfg.data.perturbation_key, 
-                                 control_value=cfg.data.control_value, 
-                                 covariate_col=covariate_keys[0])
 
      # # REFACTOR: put this into scale.py
     # # Determine perturbations to remove
