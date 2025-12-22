@@ -91,10 +91,10 @@ def main(cfg: DictConfig):
     # Create and run splitter
     splitter = PerturbationDataSplitter(
         df_initial,
-        perturbation_key=cfg.perturbations.key,
+        perturbation_key=cfg.data.perturbation_key,
         covariate_keys=cfg.data.covariate_key,
         batch_key=cfg.data.batch_key,
-        perturbation_control_value=cfg.perturbations.control_value,
+        perturbation_control_value=cfg.data.control_value,
     )
 
     seeds = normalize_seeds(cfg.splitter.seed)
@@ -119,9 +119,9 @@ def main(cfg: DictConfig):
         adata=adata,
         splitter=splitter,
         perturbations_to_remove=perturbations_to_remove,
-        perturbation_key=cfg.perturbations.key,
+        perturbation_key=cfg.data.perturbation_key,
         covariate_key=cfg.data.covariate_key,
-        control_value=cfg.perturbations.control_value,
+        control_value=cfg.data.control_value,
         manual_control=cfg.splitter.manual_control,
         base_fractions=cfg.scale.base_fractions,
         enable=cfg.scale.enabled,

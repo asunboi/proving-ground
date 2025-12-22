@@ -17,11 +17,11 @@ defaults:
 # task name, determines output directory path
 task_name: "storm"
 
-perturbations:
-  randomize: False
-  remove: ["Xpo7_0", "Rb1cc1_0", "Satb2_0", "Cx3cl1_0", "Cul1_0", "Tbr1_0"]
-  key: Assign
-  control_value: NT_0
+# perturbations:
+#   randomize: False
+#   remove: ["Xpo7_0", "Rb1cc1_0", "Satb2_0", "Cx3cl1_0", "Cul1_0", "Tbr1_0"]
+#   key: Assign
+#   control_value: NT_0
 
 output:
   main_dir: /gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/${data.name}
