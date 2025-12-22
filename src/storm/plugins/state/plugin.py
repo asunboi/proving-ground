@@ -155,31 +155,36 @@ class Plugin(ModelPlugin):
     def prepare_dirs(self, layout):
         pass
 
-    def emit_for_split(self, df, dataset_name, split_name, h5ad_path,
-                       perturbation_key, covariate_key, control_value, seed, layout):
+    def emit_for_split(self,
+                       df, 
+                       split_name,
+                       h5ad_path,
+                       seed,
+                       layout,
+                       cfg):
         
         seed_dir = layout.seed_dir(seed)
         out_dir = layout.config_dir(seed_dir, f"state")
         
-        toml_text = generate_toml_config(dataset_name, str(h5ad_path), df,
-                                         perturbation_key, covariate_key,
+        toml_text = generate_toml_config(cfg.data.name, str(h5ad_path), df,
+                                         cfg.data.perturbation_key, cfg.data.covariate_key,
                                          split_col=f"transfer_split_seed{seed}",
                                          train_label="train",
-                                         control_value=control_value)
+                                         control_value=cfg.data.control_value)
         
-        toml_path = out_dir / f"{dataset_name}_{split_name}.toml"
+        toml_path = out_dir / f"{cfg.data.name}_{split_name}.toml"
         toml_path.write_text(toml_text)
 
         # write sbatch files
-        sbatch_filename = f"{dataset_name}_{split_name}_seed{seed}.sbatch"
-        state_dir = f"{dataset_name}_seed{seed}"
+        sbatch_filename = f"{cfg.data.name}_{split_name}_seed{seed}.sbatch"
+        state_dir = f"{cfg.data.name}_seed{seed}"
         sbatch = _generate_from_template(
             "state_sbatch.j2",
             toml_config_path=toml_path,
-            perturbation_key=perturbation_key,
-            covariate_key=covariate_key,
-            control_value=control_value,
-            dataset_name=dataset_name,
+            perturbation_key=cfg.data.perturbation_key,
+            covariate_key=cfg.data.covariate_key,
+            control_value=cfg.data.control_value,
+            dataset_name=cfg.data.name,
             output_dir=out_dir,
             state_dir=state_dir,
         )
