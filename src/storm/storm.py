@@ -10,6 +10,7 @@ from anndata import AnnData
 from scale import create_scaled_datasets
 import logging
 from splitter import PerturbationDataSplitter, apply_toml_manual_split
+import scipy.sparse as sp
 
 # module-level logger
 log = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ def main(cfg: DictConfig):
 
     # Load data
     adata = sc.read_h5ad(cfg.data.adata_path)
+
+    # convert to sparse csr once to fit format to perturbench batch
+    adata.X = adata.X.tocsr()
 
     # HACK: DROP ALL CT WITH LESS THAN X CELLS
     # NOTE: why am I doing this? was it because of the splitter misbehaving?
