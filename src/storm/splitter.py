@@ -301,8 +301,12 @@ class PerturbationDataSplitter:
             n_ctrl = len(cov_ix)
             
             # Check if this covariate is in the valid_covariates set
-            cov_frozen = frozenset(cov_value) if not isinstance(cov_value, tuple) else frozenset(cov_value)
+            cov_frozen = frozenset(cov_value) if isinstance(cov_value, tuple) else frozenset([cov_value])
             is_valid_covariate = valid_covariates is None or cov_frozen in valid_covariates
+
+            log.debug(cov_value)
+            log.debug(cov_frozen)
+            log.debug(is_valid_covariate)
 
             # If covariate is not valid (no perturbed cells), assign all controls to train
             if not is_valid_covariate:
@@ -516,6 +520,14 @@ class PerturbationDataSplitter:
                         cov_keys,
                         len(df)
                     )
+            else:
+                log.debug(
+                        "Excluding covariate %r: has %d control cells",
+                        cov_keys,
+                        len(df)
+                    )
+                
+        log.debug("Valid covariates: %s", valid_covariates)
         #TODO: else statement redirecting all non-valid covariates to training
         #   else:
                 
