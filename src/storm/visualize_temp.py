@@ -23,7 +23,7 @@ def main(cfg: DictConfig):
     plugins = load_plugins(models) 
 
     for plugin in plugins:
-        plugin.visualize_scatterplots(seeds)
+        plugin.visualize_scatterplots(cfg)
 
 if __name__ == "__main__":
     main()

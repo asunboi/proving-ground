@@ -17,6 +17,7 @@ import pandas as pd
 from scipy import sparse
 import os
 import seaborn as sns
+import anndata as ad
 
 # module-level logger
 log = logging.getLogger(__name__)
@@ -30,6 +31,145 @@ def _env():
 
 def generate_yaml_config(template_name, **ctx) -> str:
     return _env().get_template(template_name).render(**ctx)
+
+def calculate_logfc_all(
+    adata,
+    control_value="NT_0",
+    cell_type_col="predicted.subclass",
+    condition_col="Assign",
+    gene_name_col="gene_names" ,
+    pseudocount=0.1,
+    skip_missing=True,
+):
+    """
+    Calculate log2 fold change vs control_value for *every* combination of
+    (cell_type, perturbation) in adata.obs.
+
+    Parameters
+    ----------
+    adata : AnnData
+    control_value : str
+        Label in `condition_col` to use as the reference (e.g. "NT_0").
+    cell_type_col : str
+        Column in adata.obs defining cell types (e.g. "predicted.subclass").
+    condition_col : str
+        Column in adata.obs defining perturbation / condition (e.g. "Assign").
+    gene_name_col : str
+        Column in adata.var containing gene names.
+    pseudocount : float
+        Pseudocount added before log2.
+    skip_missing : bool
+        If True, skip combinations where either perturbation or control
+        has zero cells for that cell type. If False, include them as
+        rows of NaNs.
+
+    Returns
+    -------
+    logfc_all : pd.DataFrame
+        Rows: MultiIndex (cell_type, perturbation)
+        Columns: genes (from `gene_name_col`)
+        Values: log2FC(perturbation vs control_value) within that cell type.
+    """
+    cell_types = adata.obs[cell_type_col].unique()
+    conditions = adata.obs[condition_col].unique()
+
+    rows = []
+    indices = []
+
+    for ct in cell_types:
+        for cond in conditions:
+            if cond == control_value:
+                continue  # don't compare control vs itself
+
+            # compute for this (cell_type, perturbation)
+            X = adata.X
+            obs = adata.obs
+
+            mask_p = (obs[condition_col] == cond) & (obs[cell_type_col] == ct)
+            mask_ctrl = (obs[condition_col] == control_value) & (
+                obs[cell_type_col] == ct
+            )
+
+            if mask_p.sum() == 0 or mask_ctrl.sum() == 0:
+                if skip_missing:
+                    continue
+                else:
+                    # keep row with NaNs
+                    n_genes = adata.n_vars
+                    rows.append(np.full(n_genes, np.nan))
+                    indices.append((ct, cond))
+                    continue
+
+            avg_p = X[mask_p].mean(axis=0)
+            avg_ctrl = X[mask_ctrl].mean(axis=0)
+
+            avg_p = avg_p.A1 if sparse.issparse(avg_p) else np.asarray(avg_p).ravel()
+            avg_ctrl = (
+                avg_ctrl.A1 if sparse.issparse(avg_ctrl) else np.asarray(avg_ctrl).ravel()
+            )
+
+            avg_p_log = np.log2(avg_p + pseudocount)
+            avg_ctrl_log = np.log2(avg_ctrl + pseudocount)
+            logfc = avg_p_log - avg_ctrl_log
+
+            rows.append(logfc)
+
+            ## SWAP FOR ONE INDEX SIMILAR TO PKL OUTPUT
+            #indices.append((ct, cond))
+            indices.append(f"{ct}_{cond}")
+
+    if not rows:
+        raise ValueError("No valid (cell_type, perturbation) combinations found.")
+
+    # --- gene names ---
+    use_var_names = (
+        gene_name_col is None
+        or str(gene_name_col).lower() in {"index", "var_names", "varnames"}
+        or gene_name_col not in adata.var.columns
+    )
+
+    if use_var_names:
+        gene_names = adata.var_names.to_list()
+    else:
+        gene_names = adata.var[gene_name_col].astype(str).to_list()
+
+    ## SWAP FOR ONE INDEX SIMILAR TO PKL OUTPUT
+    #index = pd.MultiIndex.from_tuples(indices, names=[cell_type_col, condition_col])
+    index = pd.Index(indices)
+
+    logfc_all = pd.DataFrame(rows, index=index, columns=gene_names)
+    return logfc_all
+
+def load_and_join_anndatas(
+    dir_path: str,
+    pattern: str = "*.h5ad",
+    join: str = "outer",          # "outer" keeps union of genes; "inner" keeps intersection
+    label: str = "source_file",   # adds obs column showing which file each cell came from
+    index_unique: str = "-",      # makes obs_names unique across files
+):
+    dir_path = Path(dir_path)
+    files = sorted(dir_path.glob(pattern))
+    if not files:
+        raise FileNotFoundError(f"No files matching {pattern} in {dir_path}")
+
+    adatas = []
+    for fp in files:
+        a = sc.read_h5ad(fp)              # loads fully into memory
+        a.obs[label] = fp.name
+        adatas.append(a)
+
+    # Concatenate along cells (obs)
+    adata_merged = ad.concat(
+        adatas,
+        axis=0,
+        join=join,
+        label=label,            # also creates a categorical "source_file" (same as we set)
+        keys=[f.name for f in files],
+        index_unique=index_unique,
+        fill_value=0,           # important when join="outer" and X is sparse
+        merge="same",           # keep obs/var columns only if identical across inputs
+    )
+    return adata_merged
 
 class Plugin(ModelPlugin):
     key = "perturbench"
@@ -110,7 +250,7 @@ class Plugin(ModelPlugin):
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)
 
-    def visualize_scatterplots(seeds):
+    def visualize_scatterplots(self, cfg):
         model_name = "LatentAdditive"
         
         # STATE latent 2k HVG
@@ -125,8 +265,8 @@ class Plugin(ModelPlugin):
         # ]
 
         base_dirs = [
-            f"/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli/seed_{i}/configs/perturbench/latent_additive/"
-            for seed in seeds
+            f"{cfg.output.main_dir}/seed_{seed}/configs/perturbench/latent_additive/"
+            for seed in cfg.splitter.seed
         ]
 
         # ---------------- helpers ----------------
@@ -176,8 +316,115 @@ class Plugin(ModelPlugin):
             with open(pkl_res, "rb") as f:
                 eval_data = pickle.load(f)
 
+            pred_dir = os.path.join(run_dir, "predictions")
+            adata_pred = load_and_join_anndatas(pred_dir)
+            # TODO: make this a mutable file name / path
+            adata_real = sc.read_h5ad("/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli_morph/data/boli_morph_full.h5ad")
+
+            # Create combined cell_type + perturbation index
+            cell_type_col = cfg.data.covariate_key  # 'CT'
+            condition_col = cfg.data.perturbation_key  # 'Assign'
+
+            # Calculate mean expression per cell_type + perturbation group
+            adata_pred.obs['cell_pert'] = (adata_pred.obs[cell_type_col].astype(str) + '_' + 
+                                            adata_pred.obs[condition_col].astype(str))
+            adata_real.obs['cell_pert'] = (adata_real.obs[cell_type_col].astype(str) + '_' + 
+                                            adata_real.obs[condition_col].astype(str))
+
+            # Convert to dense if sparse and create DataFrames
+            df_pred = pd.DataFrame(
+                adata_pred.X.toarray() if hasattr(adata_pred.X, 'toarray') else adata_pred.X,
+                index=adata_pred.obs['cell_pert'],
+                columns=genes
+            ).groupby(level=0).mean()
+
+            df_ref = pd.DataFrame(
+                adata_real.X.toarray() if hasattr(adata_real.X, 'toarray') else adata_real.X,
+                index=adata_real.obs['cell_pert'],
+                columns=genes
+            ).groupby(level=0).mean()
+
+            cell_perts = df_pred.index.tolist()
+
+            # Make a "figures" subdirectory next to the ckpt
+            fig_dir = os.path.join(run_dir, "figures")
+            os.makedirs(fig_dir, exist_ok=True)
+
+            # Plot for each cell_pert individually
+            rows = [] 
+            for cell_pert in cell_perts:
+                if cell_pert not in df_ref.index:
+                    continue
+
+                # Plot 1: All genes
+                fig, ax = plt.subplots(figsize=(8, 8))
+                
+                x_vals = df_ref.loc[cell_pert].values
+                y_vals = df_pred.loc[cell_pert].values
+                
+                if np.all(np.isfinite(x_vals)) and np.all(np.isfinite(y_vals)):
+                    pearson_r, p_value = pearsonr(x_vals, y_vals)
+                else:
+                    pearson_r = np.nan
+                    p_value = np.nan
+
+                top10_idx = np.argsort(x_vals)[-10:]
+                bottom10_idx = np.argsort(x_vals)[:10]
+                top_and_bottom_idx = set(top10_idx).union(set(bottom10_idx))
+
+                ax.scatter(x_vals, y_vals, alpha=0.7, color="lightgray")
+                ax.plot([x_vals.min(), x_vals.max()], [x_vals.min(), x_vals.max()], 'k--', alpha=0.5)
+                ax.set_xlabel("Real Gene Expression")
+                ax.set_ylabel(f"Predicted Gene Expression ({model_name})")
+                ax.set_title(f"{model_name} Prediction for {cell_pert}\nPearson r = {pearson_r:.3f} (p = {p_value:.2e})")
+                ax.grid(True)
+
+                texts = []
+                for idx in top_and_bottom_idx:
+                    color = "steelblue" if idx in top10_idx else "firebrick"
+                    texts.append(
+                        ax.text(
+                            x_vals[idx], y_vals[idx], genes[idx],
+                            fontsize=12,
+                            color=color,
+                            alpha=0.9,
+                            ha='right' if idx in top10_idx else 'left',
+                            va='bottom'
+                        )
+                    )
+                adjust_text(texts, arrowprops=dict(arrowstyle='->', color='gray', lw=0.5), ax=ax)
+
+                # Example: saving a figure named "my_plot"
+                safe_cell_pert = str(cell_pert).replace("/", "_")
+                fig_path = Path(fig_dir) / "expression" / f"{safe_cell_pert}_all_genes.png"
+                fig_path.parent.mkdir(parents=True, exist_ok=True)
+                log.info("Saving to %s", fig_path)
+
+                plt.tight_layout()
+                plt.savefig(fig_path, dpi=300, bbox_inches='tight')
+                plt.show()
+                plt.close()
+                
             df_pred = eval_data.aggr["logfc"][model_name].to_df()  # rows: cell_pert, cols: genes
             df_ref  = eval_data.aggr["logfc"]["ref"].to_df()
+
+            pred_dir = os.path.join(run_dir, "predictions")
+            adata_pred = load_and_join_anndatas(pred_dir)
+            # TODO: make this a mutable file name / path
+            adata_real = sc.read_h5ad("/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli_morph/data/boli_morph_full.h5ad")
+
+            # TODO: rename cell type col to covariate col or something
+            # NOTE: gene_name_col = None is specific to perturbench using index as names
+            df_pred = calculate_logfc_all(adata_pred,
+                                          control_value=cfg.data.control_value,
+                                          cell_type_col=cfg.data.covariate_key,
+                                          condition_col=cfg.data.perturbation_key,
+                                          gene_name_col=None)
+            
+            df_ref = calculate_logfc_all(adata_real,
+                                          control_value=cfg.data.control_value,
+                                          cell_type_col=cfg.data.covariate_key,
+                                          condition_col=cfg.data.perturbation_key)
 
             cell_perts = df_pred.index.tolist()
 
@@ -229,8 +476,10 @@ class Plugin(ModelPlugin):
             
 
                 # Example: saving a figure named "my_plot"
-                fig_name = f"{cell_pert}_all_genes.png"
-                fig_path = os.path.join(fig_dir, fig_name)
+                safe_cell_pert = str(cell_pert).replace("/", "_")
+                fig_path = Path(fig_dir) / "logfc" / f"{safe_cell_pert}_all_genes.png"
+                fig_path.parent.mkdir(parents=True, exist_ok=True)
+                log.info("Saving to %s", fig_path)
 
                 plt.tight_layout()
                 plt.savefig(fig_path, dpi=300, bbox_inches='tight')
@@ -318,7 +567,8 @@ class Plugin(ModelPlugin):
                     # Example: saving a figure named "my_plot"
                     deg_dir = os.path.join(fig_dir, "deg")
                     os.makedirs(deg_dir, exist_ok=True)
-                    fig_name = f"{cell_pert}_DEGs_only.png"
+                    safe_cell_pert = str(cell_pert).replace("/", "_")
+                    fig_name = f"{safe_cell_pert}_DEGs_only.png"
                     fig_path = os.path.join(deg_dir, fig_name)
                     plt.savefig(fig_path, dpi=300, bbox_inches='tight')
                     plt.show()

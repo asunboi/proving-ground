@@ -22,5 +22,5 @@ class ModelPlugin(ABC):
     #     pass
 
     @abstractmethod
-    def visualize_scatterplots() -> None:
+    def visualize_scatterplots(self, seed) -> None:
         pass
