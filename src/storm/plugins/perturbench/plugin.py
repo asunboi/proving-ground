@@ -454,8 +454,8 @@ class Plugin(ModelPlugin):
 
                 ax.scatter(x_vals, y_vals, alpha=0.7, color="lightgray")
                 ax.plot([x_vals.min(), x_vals.max()], [x_vals.min(), x_vals.max()], 'k--', alpha=0.5)
-                ax.set_xlabel("Actual change in expression")
-                ax.set_ylabel(f"Predicted expression ({model_name})")
+                ax.set_xlabel("Actual Expression LogFC")
+                ax.set_ylabel(f"Predicted Expression LogFC ({model_name})")
                 ax.set_title(f"{model_name} Prediction for {cell_pert}\nPearson r = {pearson_r:.3f} (p = {p_value:.2e})")
                 ax.grid(True)
 
@@ -473,7 +473,6 @@ class Plugin(ModelPlugin):
                         )
                     )
                 adjust_text(texts, arrowprops=dict(arrowstyle='->', color='gray', lw=0.5), ax=ax)
-            
 
                 # Example: saving a figure named "my_plot"
                 safe_cell_pert = str(cell_pert).replace("/", "_")
