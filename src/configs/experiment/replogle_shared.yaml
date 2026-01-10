@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - override /hydra: splitter
+  - override /splitter: automatic
+  - override /data: replogle
+  
+splitter:
+  manual_control: False
+  seed: [1,2,3,4,5,6,7,8,9,10]
+  max_heldout_covariates: 2

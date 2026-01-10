@@ -3,4 +3,4 @@ toml_path: /gpfs/home/asun/jin_lab/state/debug/STATE/state/test_boli/Boli_Pertur
 manual_control: False
 seed: 1
 max_heldout_fraction_per_covariate: 0.3
-max_heldout_covariates: 100
+max_heldout_covariates: 2
