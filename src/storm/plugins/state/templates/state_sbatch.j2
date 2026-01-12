@@ -13,7 +13,9 @@ apptainer run --nv \
       data.kwargs.toml_config_path={{ toml_config_path }} \
       data.kwargs.embed_key="X_hvg" \
       data.kwargs.num_workers=12 \
-      data.kwargs.batch_col="Sample" \
+{% if batch_key is not none %}
+      data.kwargs.batch_col={{ batch_key }} \
+{% endif %}
       data.kwargs.pert_col={{ perturbation_key }} \
       data.kwargs.cell_type_key={{ covariate_key }} \
       data.kwargs.control_pert={{ control_value }} \

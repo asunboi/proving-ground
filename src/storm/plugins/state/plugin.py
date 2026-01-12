@@ -187,6 +187,7 @@ class Plugin(ModelPlugin):
             dataset_name=cfg.data.name,
             output_dir=out_dir,
             state_dir=state_dir,
+            batch_key=cfg.data.batch_key,
         )
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)
