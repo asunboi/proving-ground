@@ -192,21 +192,14 @@ class Plugin(ModelPlugin):
         sbatch_path = out_dir / sbatch_filename
         sbatch_path.write_text(sbatch)
 
-    def visualize_scatterplots(seeds):
+    def visualize_scatterplots(self, cfg):
         model_name = "STATE"
-        
-        # STATE latent 2k HVG
-        boli = sc.read_h5ad(
-            "/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/test/2025-11-21_12-06-21/data/test_full.h5ad"
-        )
 
         # Directories, each containing adata_pred.h5ad and adata_real.h5ad
         adata_dirs = [
-            f"/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli/seed_{seed}/configs/state/boli_seed{seed}"
-            for seed in seeds
+            f"{cfg.output.main_dir}/seed_{seed}/configs/state/{cfg.data.name}_seed{seed}"
+            for seed in cfg.splitter.seed
         ]
-        
-        genes = boli.var["gene_name"].values
 
         def load_deg_genes(cell_pert: str):
             """
@@ -233,6 +226,9 @@ class Plugin(ModelPlugin):
                 print(f"Warning: DEG file not found for {cell_pert}: {deg_file}")
                 return set()
 
+        # FIX: only set genes once
+        set_genes = True
+
         for run_dir in adata_dirs:
             adata_pred_path = os.path.join(run_dir, "eval_final.ckpt/adata_pred.h5ad")
             adata_real_path = os.path.join(run_dir, "eval_final.ckpt/adata_real.h5ad")
@@ -246,8 +242,22 @@ class Plugin(ModelPlugin):
             adata_pred = sc.read_h5ad(adata_pred_path)
             adata_real = sc.read_h5ad(adata_real_path)
 
-            logfc_all_real = calculate_logfc_all(adata_real)
-            logfc_all_pred = calculate_logfc_all(adata_pred)
+            if set_genes:
+                genes = (
+                    adata_real.var["gene_name"].values
+                    if "gene_name" in adata_real.var.columns
+                    else adata_real.var.index.values
+                )
+                set_genes = False
+
+            logfc_all_real = calculate_logfc_all(adata_real,
+                                                control_value=cfg.data.control_value,
+                                                cell_type_col=cfg.data.covariate_key,
+                                                condition_col=cfg.data.perturbation_key)
+            logfc_all_pred = calculate_logfc_all(adata_pred,
+                                                control_value=cfg.data.control_value,
+                                                cell_type_col=cfg.data.covariate_key,
+                                                condition_col=cfg.data.perturbation_key)
 
             df_pred = logfc_all_pred  # rows: cell_pert, cols: genes
             df_ref  = logfc_all_real
@@ -276,7 +286,7 @@ class Plugin(ModelPlugin):
                 ax.scatter(x_vals, y_vals, alpha=0.7, color="lightgray")
                 ax.plot([x_vals.min(), x_vals.max()], [x_vals.min(), x_vals.max()], 'k--', alpha=0.5)
                 ax.set_xlabel("Actual change in expression")
-                ax.set_ylabel(f"Predicted expression ({model_name})")
+                ax.set_ylabel(f"Predicted change in expression ({model_name})")
                 ax.set_title(f"{model_name} Prediction for {cell_pert}\nPearson r = {pearson_r:.3f} (p = {p_value:.2e})")
                 ax.grid(True)
 
@@ -354,21 +364,6 @@ class Plugin(ModelPlugin):
                     ax.set_ylabel(f"Predicted expression ({model_name})")
                     ax.set_title(f"{model_name} Prediction for {cell_pert}\nPearson r = {pearson_r:.3f} (p = {p_value:.2e})\nDEGs only (n={len(genes_deg)})")
                     ax.grid(True)
-                    
-                    # texts = []
-                    # for idx in top_and_bottom_idx:
-                    #     color = "steelblue" if idx in top10_idx else "firebrick"
-                    #     texts.append(
-                    #         ax.text(
-                    #             x_vals_deg[idx], y_vals_deg[idx], genes_deg[idx],
-                    #             fontsize=12,
-                    #             color=color,
-                    #             alpha=0.9,
-                    #             ha='right' if idx in top10_idx else 'left',
-                    #             va='bottom'
-                    #         )
-                    #     )
-                    # adjust_text(texts, arrowprops=dict(arrowstyle='->', color='gray', lw=0.5), ax=ax)
                     
                     plt.tight_layout()
                     # Example: saving a figure named "my_plot"
