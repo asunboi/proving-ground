@@ -251,12 +251,18 @@ class Plugin(ModelPlugin):
         sbatch_path.write_text(sbatch)
 
     def visualize_scatterplots(self, cfg):
+        log.info("Starting plots.")
+
         model_name = "LatentAdditive"
         
-        # STATE latent 2k HVG
-        boli = sc.read_h5ad(
-            "/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/test/2025-11-21_12-06-21/data/test_full.h5ad"
-        )
+        ### modified jan 12, should eventually refactor into a paths module that loads in given a starting hydra experiment
+        data_dir = Path(cfg.output.main_dir) / "data"
+        matches = list(data_dir.glob("*.h5ad"))
+
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected exactly 1 .h5ad file, found {len(matches)}: {matches}")
+
+        h5ad_path = matches[0]
 
         # # Directories, each containing adata_pred.h5ad and adata_real.h5ad
         # adata_dirs = [
@@ -268,6 +274,8 @@ class Plugin(ModelPlugin):
             f"{cfg.output.main_dir}/seed_{seed}/configs/perturbench/latent_additive/"
             for seed in cfg.splitter.seed
         ]
+
+        log.info(base_dirs)
 
         # ---------------- helpers ----------------
         def parse_cell_pert(cell_pert: str):
@@ -281,8 +289,6 @@ class Plugin(ModelPlugin):
             perturbation = parts[-2]
             return cell_type, perturbation
         
-        genes = boli.var["gene_name"].values
-
         def load_deg_genes(cell_pert: str):
             """
             Load DEG genes for a specific cell type and perturbation.
@@ -311,6 +317,30 @@ class Plugin(ModelPlugin):
         # ---------------- load and aggregate data from multiple pkl files ----------------
         all_eval_data = []
 
+        # TODO: make this a mutable file name / path
+        # FIX: jan 12, moved adata_real out of the for loop since it's taking a lot to load it everytime.
+        adata_real = sc.read_h5ad(h5ad_path)
+        
+        # FIX: jan 12, instead of using boli gene names, generic adata_real and keyerror avoidance
+        genes = (
+            adata_real.var["gene_name"].values
+            if "gene_name" in adata_real.var.columns
+            else adata_real.var.index.values
+        )
+        adata_real.obs['cell_pert'] = (adata_real.obs[cfg.data.covariate_key].astype(str) + '_' + 
+                                            adata_real.obs[cfg.data.perturbation_key].astype(str))
+        df_exp_ref = pd.DataFrame(
+                adata_real.X.toarray() if hasattr(adata_real.X, 'toarray') else adata_real.X,
+                index=adata_real.obs['cell_pert'],
+                columns=genes
+            ).groupby(level=0).mean()
+        df_ref = calculate_logfc_all(adata_real,
+                                          control_value=cfg.data.control_value,
+                                          cell_type_col=cfg.data.covariate_key,
+                                          condition_col=cfg.data.perturbation_key)
+        
+        log.info("Finished calculating logfc for real dataset.")
+        
         for run_dir in base_dirs:
             pkl_res = os.path.join(run_dir, "evaluation/eval.pkl")
             with open(pkl_res, "rb") as f:
@@ -318,8 +348,6 @@ class Plugin(ModelPlugin):
 
             pred_dir = os.path.join(run_dir, "predictions")
             adata_pred = load_and_join_anndatas(pred_dir)
-            # TODO: make this a mutable file name / path
-            adata_real = sc.read_h5ad("/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli_morph/data/boli_morph_full.h5ad")
 
             # Create combined cell_type + perturbation index
             cell_type_col = cfg.data.covariate_key  # 'CT'
@@ -328,19 +356,12 @@ class Plugin(ModelPlugin):
             # Calculate mean expression per cell_type + perturbation group
             adata_pred.obs['cell_pert'] = (adata_pred.obs[cell_type_col].astype(str) + '_' + 
                                             adata_pred.obs[condition_col].astype(str))
-            adata_real.obs['cell_pert'] = (adata_real.obs[cell_type_col].astype(str) + '_' + 
-                                            adata_real.obs[condition_col].astype(str))
+            
 
             # Convert to dense if sparse and create DataFrames
             df_pred = pd.DataFrame(
                 adata_pred.X.toarray() if hasattr(adata_pred.X, 'toarray') else adata_pred.X,
                 index=adata_pred.obs['cell_pert'],
-                columns=genes
-            ).groupby(level=0).mean()
-
-            df_ref = pd.DataFrame(
-                adata_real.X.toarray() if hasattr(adata_real.X, 'toarray') else adata_real.X,
-                index=adata_real.obs['cell_pert'],
                 columns=genes
             ).groupby(level=0).mean()
 
@@ -353,13 +374,13 @@ class Plugin(ModelPlugin):
             # Plot for each cell_pert individually
             rows = [] 
             for cell_pert in cell_perts:
-                if cell_pert not in df_ref.index:
+                if cell_pert not in df_exp_ref.index:
                     continue
 
                 # Plot 1: All genes
                 fig, ax = plt.subplots(figsize=(8, 8))
                 
-                x_vals = df_ref.loc[cell_pert].values
+                x_vals = df_exp_ref.loc[cell_pert].values
                 y_vals = df_pred.loc[cell_pert].values
                 
                 if np.all(np.isfinite(x_vals)) and np.all(np.isfinite(y_vals)):
@@ -405,13 +426,12 @@ class Plugin(ModelPlugin):
                 plt.show()
                 plt.close()
                 
-            df_pred = eval_data.aggr["logfc"][model_name].to_df()  # rows: cell_pert, cols: genes
-            df_ref  = eval_data.aggr["logfc"]["ref"].to_df()
+            # FIX: jan 12, antiquated, don't use eval_data to calculate logfc anymore
+            # df_pred = eval_data.aggr["logfc"][model_name].to_df()  # rows: cell_pert, cols: genes
+            # df_ref  = eval_data.aggr["logfc"]["ref"].to_df()
 
             pred_dir = os.path.join(run_dir, "predictions")
             adata_pred = load_and_join_anndatas(pred_dir)
-            # TODO: make this a mutable file name / path
-            adata_real = sc.read_h5ad("/gpfs/home/asun/jin_lab/perturbench/studies/storm/outputs/boli_morph/data/boli_morph_full.h5ad")
 
             # TODO: rename cell type col to covariate col or something
             # NOTE: gene_name_col = None is specific to perturbench using index as names
@@ -420,11 +440,6 @@ class Plugin(ModelPlugin):
                                           cell_type_col=cfg.data.covariate_key,
                                           condition_col=cfg.data.perturbation_key,
                                           gene_name_col=None)
-            
-            df_ref = calculate_logfc_all(adata_real,
-                                          control_value=cfg.data.control_value,
-                                          cell_type_col=cfg.data.covariate_key,
-                                          condition_col=cfg.data.perturbation_key)
 
             cell_perts = df_pred.index.tolist()
 
