@@ -9,7 +9,7 @@ from save import save_datasets
 from anndata import AnnData
 from scale import create_scaled_datasets
 import logging
-from splitter import PerturbationDataSplitter, apply_toml_manual_split
+from splitter import PerturbationDataSplitter, apply_toml_manual_split, apply_csv_manual_split
 import scipy.sparse as sp
 
 # module-level logger
@@ -102,12 +102,29 @@ def main(cfg: DictConfig):
 
     seeds = normalize_seeds(cfg.splitter.seed)
 
+    ### checks if manual split, and where the manual split source is from to set the function
+    MANUAL_SPLIT_DISPATCH = {
+        "toml_path": apply_toml_manual_split,
+        "csv_path": apply_csv_manual_split,
+        # future: "json_path": apply_json_manual_split,
+    }
     if cfg.splitter.manual:
-        apply_toml_manual_split(
+        provided = [
+            (field, getattr(cfg.splitter, field))
+            for field in MANUAL_SPLIT_DISPATCH
+            if getattr(cfg.splitter, field)
+        ]
+        if len(provided) != 1:
+            raise ValueError(
+                f"Exactly one manual split source must be set, got: {[k for k, _ in provided]}"
+            )
+        field, path = provided[0]
+        split_fn = MANUAL_SPLIT_DISPATCH[field]
+        df_initial = split_fn(
             df_initial,
-            cfg.splitter.toml_path,
+            path,
             perturbation_suffix="_0",
-        ) 
+        )
     else:
         for seed in seeds:
             splitter.split_covariates(

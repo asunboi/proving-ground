@@ -1,0 +1,5 @@
+manual: True
+toml_path: null
+csv_path: null
+manual_control: False
+seed: [1]

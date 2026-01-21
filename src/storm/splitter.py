@@ -969,3 +969,39 @@ def apply_toml_manual_split(
     _apply_section("zeroshot")
 
     return obs[split_col]
+
+def apply_csv_manual_split(
+    obs: pd.DataFrame,
+    cfg: DictConfig,
+    *,
+    dataset_key: str | None = None,
+    split_col: str = "transfer_split_seed1",
+    perturbation_col: str = "Assign",
+    covariate_col: str = "predicted.subclass",
+    perturbation_suffix: str | None = None,
+    default_split: str | None = None,
+) -> pd.Series:
+
+    split = pd.read_csv(
+        cfg.splitter.csv_path, index_col=0, header=None
+    ).iloc[:, 0]
+
+     # --- validation ---
+    if not split.index.equals(obs.index):
+        raise ValueError("CSV split index must exactly match obs.index")
+
+    valid_splits = {"train", "val", "test"}
+    unknown = set(split.unique()) - valid_splits
+    if unknown:
+        raise ValueError(f"Unknown split labels found: {unknown}")
+
+    # --- initialize column ---
+    if default_split is not None:
+        obs[split_col] = default_split
+    else:
+        obs[split_col] = pd.NA
+
+    # --- assign by index (not position) ---
+    obs.loc[split.index, split_col] = split
+
+    return obs[split_col]

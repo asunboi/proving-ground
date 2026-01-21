@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - override /hydra: splitter
+  - override /splitter: manual
+  - override /data: frangieh21
+  
+splitter:
+  csv_path: /gpfs/home/asun/jin_lab/database/frangieh21/frangieh21_split.csv
