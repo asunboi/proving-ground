@@ -5,11 +5,11 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf, ListConfig
 import random
-from save import save_datasets
 from anndata import AnnData
-from scale import create_scaled_datasets
 import logging
-from splitter import PerturbationDataSplitter, apply_toml_manual_split, apply_csv_manual_split
+from storm.save import save_datasets
+from storm.scale import create_scaled_datasets
+from storm.splitter import PerturbationDataSplitter, apply_toml_manual_split, apply_csv_manual_split
 import scipy.sparse as sp
 
 # module-level logger
@@ -122,7 +122,7 @@ def main(cfg: DictConfig):
         split_fn = MANUAL_SPLIT_DISPATCH[field]
         df_initial = split_fn(
             df_initial,
-            path,
+            cfg,
             perturbation_suffix="_0",
         )
     else:

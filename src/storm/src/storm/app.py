@@ -19,7 +19,7 @@ def _dispatch(cmd: str, cfg: DictConfig) -> None:
     fn(cfg)
 
 
-@hydra.main(config_path="../configs", config_name="storm", version_base="1.3")
+@hydra.main(config_path="/gpfs/home/asun/jin_lab/perturbench/src/configs", config_name="storm", version_base="1.3")
 def hydra_main(cfg: DictConfig) -> None:
     cmd = os.environ.get(_CMD_ENV, "run")
     _dispatch(cmd, cfg)

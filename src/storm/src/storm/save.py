@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import logging
-from plugins.loader import load_plugins
+from storm.plugins.loader import load_plugins
 
 log = logging.getLogger(__name__)
 
@@ -143,6 +143,138 @@ def plot_counts(df, outfile, seed, cfg):
 
     return fig, axes
 
+def plot_counts_rasterized(df, outfile, seed, cfg):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    seed_col = f"transfer_split_seed{seed}"
+    has_batch = cfg.data.batch_key is not None
+
+    groupby_cols = [cfg.data.perturbation_key, seed_col]
+    if has_batch:
+        groupby_cols.extend([cfg.data.batch_key, cfg.data.covariate_key])
+    else:
+        groupby_cols.append(cfg.data.covariate_key)
+
+    count_long = (
+        df.groupby(groupby_cols, observed=False)
+        .size()
+        .reset_index(name="count")
+    )
+
+    pivot_index = (
+        [cfg.data.batch_key, cfg.data.covariate_key, cfg.data.perturbation_key]
+        if has_batch
+        else [cfg.data.covariate_key, cfg.data.perturbation_key]
+    )
+
+    wide = (
+        count_long
+        .pivot(index=pivot_index, columns=seed_col, values="count")
+        .fillna(0)
+        .reset_index()
+    )
+
+    index_cols = 3 if has_batch else 2
+    data_cols = wide.columns[index_cols:]
+    keep_data_cols = wide[data_cols].notna().any(axis=0)
+
+    wide = wide.loc[:, list(wide.columns[:index_cols]) + list(data_cols[keep_data_cols])]
+
+    if has_batch:
+        groups = wide[[cfg.data.batch_key, cfg.data.covariate_key]].drop_duplicates()
+    else:
+        groups = wide[[cfg.data.covariate_key]].drop_duplicates()
+
+    n_cols = 2
+    n_rows = (len(groups) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 3 * n_rows))
+    axes = axes.flatten()
+
+    for i, (_, row) in enumerate(groups.iterrows()):
+        ax = axes[i]
+
+        if has_batch:
+            mask = (
+                (wide[cfg.data.batch_key] == row[cfg.data.batch_key]) &
+                (wide[cfg.data.covariate_key] == row[cfg.data.covariate_key])
+            )
+            title = f"{row[cfg.data.batch_key]} – {row[cfg.data.covariate_key]}"
+            drop_cols = [cfg.data.batch_key, cfg.data.covariate_key]
+        else:
+            mask = wide[cfg.data.covariate_key] == row[cfg.data.covariate_key]
+            title = str(row[cfg.data.covariate_key])
+            drop_cols = [cfg.data.covariate_key]
+
+        subset = (
+            wide[mask]
+            .set_index(cfg.data.perturbation_key)
+            .drop(columns=drop_cols)
+        )
+
+        # ---- IMPORTANT PART ----
+        # sort perturbations by variability across seeds
+        order = subset.std(axis=1).sort_values(ascending=False).index
+        subset = subset.loc[order]
+
+        data = subset.values
+
+        # tweak since control can dominate
+        data = np.log1p(data)
+
+        im = ax.imshow(
+            data,
+            aspect="auto",
+            cmap="viridis",
+            interpolation="nearest",
+            rasterized=True
+        )
+
+        ax.set_title(title)
+        ax.set_xlabel("Seed")
+        ax.set_ylabel("Perturbations (sorted)")
+        ax.set_xticks(np.arange(len(subset.columns)))
+        ax.set_xticklabels(subset.columns, rotation=45, ha="right")
+
+        # critical: remove y tick labels
+        ax.set_yticks([])
+
+        fig.colorbar(im, ax=ax, shrink=0.6)
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    plt.savefig(outfile, dpi=300)
+    plt.close(fig)
+
+    return fig
+
+# helper to count perturbations to determine which plotting mechanism to use
+def _n_perturbations(df, cfg):
+    return df[cfg.data.perturbation_key].nunique()
+
+def plot_counts_auto(
+    df,
+    outfile,
+    seed,
+    cfg,
+    max_annotated=20,
+):
+    """
+    Automatically choose plotting strategy based on number of perturbations.
+
+    - <= max_annotated: annotated heatmap (plot_counts)
+    - >  max_annotated: rasterized heatmap (plot_counts_rasterized)
+    """
+
+    n_perts = _n_perturbations(df, cfg)
+
+    if n_perts <= max_annotated:
+        plot_counts(df, outfile, seed, cfg)
+    else:
+        plot_counts_rasterized(df, outfile, seed, cfg)
+
 # projectlayout defines the shared folders with __post_init__, while emit_for_split in the plugins call config_dir to create their respective packages.
 @dataclass
 class ProjectLayout:
@@ -195,7 +327,7 @@ def save_datasets(datasets, adata, cfg):
 
             # create figures of seeded splits
             fig_path = layout.fig_dir / f"{cfg.data.name}_{split_name}_seed{seed}.png"
-            plot_counts(df, str(fig_path), seed, cfg)
+            plot_counts_auto(df, str(fig_path), seed, cfg)
 
             # per-model artifacts
             for plugin in plugins:

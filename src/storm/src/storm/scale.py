@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from anndata import AnnData
 import logging
-from utils import check_coverage
+from storm.utils import check_coverage
 
 # module-level logger
 log = logging.getLogger(__name__)
