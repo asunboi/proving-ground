@@ -893,8 +893,6 @@ def apply_toml_manual_split(
     *,
     dataset_key: str | None = None,
     split_col: str = "transfer_split_seed1",
-    perturbation_col: str = "Assign",
-    covariate_col: str = "predicted.subclass",
     perturbation_suffix: str | None = None,
     default_split: str | None = None,
 ) -> pd.Series:
@@ -943,7 +941,11 @@ def apply_toml_manual_split(
         if isinstance(split_value, str):  # Simple "dataset.covariate" = "test" format
             ds_name, covariate_value = key.split(".", 1)
             
-            mask = obs[covariate_col] == covariate_value
+            # Match covariate and exclude control
+            mask = (
+                (obs[cfg.data.covariate_key] == covariate_value) & 
+                (obs[cfg.data.perturbation_key] != cfg.data.control_value)
+            )
             obs.loc[mask, split_col] = split_value
 
     def _apply_section(section_name: str):
@@ -967,8 +969,8 @@ def apply_toml_manual_split(
                 ]
 
                 mask = (
-                    obs[perturbation_col].isin(pert_values)
-                    & (obs[covariate_col] == covariate_value)
+                    obs[cfg.data.perturbation_key].isin(pert_values)
+                    & (obs[cfg.data.covariate_key] == covariate_value)
                 )
                 obs.loc[mask, split_col] = split_name
 
