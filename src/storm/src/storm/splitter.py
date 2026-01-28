@@ -889,7 +889,7 @@ class PerturbationDataSplitter:
     
 def apply_toml_manual_split(
     obs: pd.DataFrame,
-    toml_path: str | Path,
+    cfg: DictConfig,
     *,
     dataset_key: str | None = None,
     split_col: str = "transfer_split_seed1",
@@ -926,7 +926,7 @@ def apply_toml_manual_split(
         - obs[perturbation_col] matches each listed perturbation plus `perturbation_suffix`
           (e.g. "Tbr1" -> "Tbr1_0" if suffix="_0").
     """
-    toml_path = Path(toml_path)
+    toml_path = Path(cfg.splitter.toml_path)
     with toml_path.open("rb") as f:
         config = tomllib.load(f)
 
@@ -936,6 +936,15 @@ def apply_toml_manual_split(
 
     # Initialize everything to default (e.g. 'train')
     obs[split_col] = "train"
+
+    # Handle simple zeroshot/training format (dataset = "split")
+    zeroshot_cfg = config.get("zeroshot", {})
+    for key, split_value in zeroshot_cfg.items():
+        if isinstance(split_value, str):  # Simple "dataset.covariate" = "test" format
+            ds_name, covariate_value = key.split(".", 1)
+            
+            mask = obs[covariate_col] == covariate_value
+            obs.loc[mask, split_col] = split_value
 
     def _apply_section(section_name: str):
         section_cfg = config.get(section_name, {})
@@ -965,8 +974,6 @@ def apply_toml_manual_split(
 
     # Fewshot section (your current example)
     _apply_section("fewshot")
-    # Zeroshot could use the same structure/semantics later if you want
-    _apply_section("zeroshot")
 
     return obs[split_col]
 
